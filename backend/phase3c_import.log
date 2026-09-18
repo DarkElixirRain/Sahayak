@@ -1,0 +1,54 @@
+Sahayak Legal Knowledge Import
+
+File:
+data/legal/muluki_dewani_samhita_2074_importer_ready.csv
+
+Total rows:       721
+Inserted:         0
+Updated:          721
+Skipped:          0
+Failed:           0
+
+Verified records: 0
+Unverified:       721
+
+Per-table detail:
+  domains:    0 created, 3 reused
+  documents:  0 created, 3 reused
+  sources:    0 created, 1 reused
+  provisions: 0 created, 721 refreshed, 0 unchanged
+  chunks:     0 created, 721 refreshed
+
+Database round trips: 8
+Duration:             19.27s
+
+
+exit=0 wall=24.55s
+
+
+=== SECOND IDENTICAL RUN (idempotency) ===
+Sahayak Legal Knowledge Import
+
+File:
+data/legal/muluki_dewani_samhita_2074_importer_ready.csv
+
+Total rows:       721
+Inserted:         0
+Updated:          0
+Skipped:          721
+Failed:           0
+
+Verified records: 0
+Unverified:       721
+
+Per-table detail:
+  domains:    0 created, 3 reused
+  documents:  0 created, 3 reused
+  sources:    0 created, 1 reused
+  provisions: 0 created, 0 refreshed, 721 unchanged
+  chunks:     0 created, 0 refreshed
+
+Database round trips: 6
+Duration:             6.67s
+
+exit=0 wall=11.96s

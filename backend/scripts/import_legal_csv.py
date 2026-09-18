@@ -36,6 +36,19 @@ def _print_report(report) -> None:
     print(f"Verified records: {report.verified}")
     print(f"Unverified:       {report.unverified}")
     print()
+    print("Per-table detail:")
+    print(f"  domains:    {report.domains_created} created, {report.domains_reused} reused")
+    print(f"  documents:  {report.documents_created} created, {report.documents_reused} reused")
+    print(f"  sources:    {report.sources_created} created, {report.sources_reused} reused")
+    print(
+        f"  provisions: {report.provisions_created} created, "
+        f"{report.provisions_updated} refreshed, {report.provisions_unchanged} unchanged"
+    )
+    print(f"  chunks:     {report.chunks_created} created, {report.chunks_updated} refreshed")
+    print()
+    print(f"Database round trips: {report.db_operations}")
+    print(f"Duration:             {report.duration_seconds:.2f}s")
+    print()
 
     for failure in report.failures:
         print(f"  - {failure}")

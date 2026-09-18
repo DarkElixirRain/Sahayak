@@ -43,6 +43,62 @@ class LegalDomainRepository(BaseRepository):
         query += " ORDER BY key"
         return self._fetch_all(query)
 
+    def map_by_keys(self, keys: Sequence[str]) -> dict[str, dict[str, Any]]:
+        """Fetch several domains at once, keyed by their stable ``key``."""
+        keys = list(keys)
+        if not keys:
+            return {}
+        rows = self._fetch_all(
+            "SELECT * FROM legal_domains WHERE key = ANY(%s)", (keys,)
+        )
+        return {r["key"]: r for r in rows}
+
+    def create_many(
+        self, items: Sequence[dict[str, Any]]
+    ) -> dict[str, dict[str, Any]]:
+        """Insert several domains in one batch and return them keyed by ``key``.
+
+        Existing keys are left completely untouched (``DO NOTHING``), so a bulk
+        import can never overwrite the seeded taxonomy.
+        """
+        if not items:
+            return {}
+        self._executemany(
+            """
+            INSERT INTO legal_domains (id, key, name, description, is_active)
+            VALUES (%s, %s, %s, %s, %s)
+            ON CONFLICT (key) DO NOTHING
+            """,
+            [
+                (
+                    uuid4(), i["key"], i["name"], i.get("description"),
+                    i.get("is_active", True),
+                )
+                for i in items
+            ],
+        )
+        return self.map_by_keys([i["key"] for i in items])
+
+    def get_or_create(
+        self,
+        key: str,
+        name: str,
+        description: str | None = None,
+        is_active: bool = True,
+    ) -> tuple[dict[str, Any], bool]:
+        """Reuse the existing domain for ``key``; create it only when missing.
+
+        Unlike ``upsert`` this never overwrites an existing domain's metadata,
+        so imports never alter the seeded taxonomy as a side effect.
+        """
+        existing = self.get_by_key(key)
+        if existing is not None:
+            return existing, False
+        return (
+            self.create(key=key, name=name, description=description, is_active=is_active),
+            True,
+        )
+
     def upsert(
         self,
         key: str,

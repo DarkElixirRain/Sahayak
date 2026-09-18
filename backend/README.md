@@ -8,7 +8,7 @@ for underserved communities in Nepal.
 ## Current Phase
 
 ```
-Phase 2 — Legal Knowledge Database + CSV Import Foundation
+Phase 3C — Legal Data Ingestion (Muluki Dewani Sanhita 2074)
 ```
 
 ## Project
@@ -177,6 +177,128 @@ same file **does not create duplicates**.
 python scripts/import_legal_csv.py data/incoming/legal_knowledge.csv --best-effort
 ```
 
+### Phase 3C — import the validated Muluki Dewani Sanhita 2074 dataset
+
+The Phase 3B-validated dataset `data/legal/muluki_dewani_samhita_2074_importer_ready.csv`
+(721 rows) is ingested with the standard importer:
+
+```bash
+python scripts/import_legal_csv.py data/legal/muluki_dewani_samhita_2074_importer_ready.csv
+```
+
+Behavior:
+
+- **Atomic** — all rows import in a single transaction; any failure rolls back
+  the entire import (no partial legal corpus).
+- **Idempotent** — deterministic natural keys (domain key, document
+  title+type, source URL, provision number, chunk index) mean re-running the
+  same CSV creates no duplicates. Rows whose stored text already matches are
+  skipped; provisions whose stored text is stale (e.g. a pre-correction
+  import) are refreshed in place from the validated CSV.
+- **Legal-text preservation** — provision and chunk content are stored
+  byte-for-byte from the validated CSV. The importer never normalizes,
+  corrects, or rewrites legal text.
+
+#### Performance (why the importer was rewritten)
+
+The original importer ran one round-trip loop per CSV row (domain lookup,
+document lookup, source lookup, provision lookup, chunk lookup, plus an
+insert + read-back per new row — roughly 9 statements per row, ~6,500 for this
+file). That is fine against a local database but not against remote Neon,
+where the first real import blew past the 300 s timeout.
+
+`import_rows` is now **set-based** and never issues a query per row:
+
+| phase | old | new |
+|-------|-----|-----|
+| prefetch existing state | per row | 5 queries (domains, sources, documents, provisions, chunks) |
+| decide create / refresh / no-op | in SQL | in memory |
+| writes | per row | 1 batched statement per affected table |
+| **round trips for 721 rows** | **~6,500** | **8 first run / 6 on a no-op re-run** |
+
+Measured: **19.3 s** for the first (721-row refresh) run, **6.7 s** for the
+second. Transactionality, `ON CONFLICT`-safe reuse and granularity of the
+skip/refresh decision are unchanged, and `ImportReport` now reports per-table
+counts plus `db_operations` and `duration_seconds`, so a no-op re-import is
+provably a no-op (zero writes).
+
+#### Result for this dataset
+
+- 3 domain-scoped `legal_documents` records: `civil` (295 provisions),
+  `family` (184), `land_property` (242) — one per seeded domain referenced
+  by the dataset, all titled `मुलुकी देवानी संहिता, २०७४` (type `act`)
+- 721 `legal_provisions` rows and 721 `knowledge_chunks` rows
+- 1 `sources` record: नेपाल कानून आयोग (Nepal Law Commission),
+  `law_commission`, https://lawcommission.gov.np/content/13455/civil-code-2074
+- All 721 rows stored with `is_verified = false` (the dataset's own
+  verification claim — do not raise it without human re-verification)
+- Section 141 carries the authorized Phase 3B correction (`व्यक्ति`); the
+  legacy remnant `mव्यति` must never appear in imported content
+
+#### Actual run (2026-09-18, Neon PostgreSQL)
+
+The database already held a previously committed import of this document whose
+provision/chunk text used `\r\n` line endings instead of the validated
+dataset's `\n`. That pre-existing data was a *stale* import and was corrected
+in place — this run was a refresh, not a first insert:
+
+```text
+rows 721   inserted 0   updated 721   skipped 0   failed 0
+domains:    0 created, 3 reused
+documents:  0 created, 3 reused
+sources:    0 created, 1 reused
+provisions: 0 created, 721 refreshed, 0 unchanged
+chunks:     0 created, 721 refreshed
+round trips 8      duration 19.27s
+exit 0
+```
+
+A second identical run was a true no-op (`0 created, 0 refreshed, 721
+unchanged`, 6 round trips, 6.67 s). No existing domain metadata was altered
+(`land_property`'s pre-existing empty description stayed empty rather than
+being invented).
+
+> **Operational note.** The earlier timed-out import left an *orphaned*
+> process holding an open transaction (`idle in transaction`, holding a
+> `transactionid` lock), which silently blocked every later re-run. Before
+> re-running after a timeout, check for a lingering session and confirm
+> whether the transaction committed, rolled back, or is still open:
+>
+> ```sql
+> SELECT pid, state, wait_event_type, wait_event, now() - xact_start AS xact_age, query
+> FROM pg_stat_activity WHERE datname = current_database();
+> ```
+
+#### Verification procedure (read-only)
+
+```bash
+python scripts/verify_database.py            # schema, FKs, indexes
+python scripts/validate_legal_csv.py data/legal/muluki_dewani_samhita_2074_importer_ready.csv
+python scripts/verify_phase3c_import.py      # all 721 rows vs. the validated CSV
+```
+
+`verify_phase3c_import.py` compares every row (not a sample) and reports
+counts, per-row text integrity, Section 141, referential integrity,
+duplicates, domain integrity and verification state. It only runs `SELECT`s.
+It passed 25/25 checks after the import and again after the idempotent
+re-run: **0 provision mismatches, 0 chunk mismatches, 0 duplicates, 0
+orphans**, `व्यक्ति` present at Section 141 and `mव्यति` absent everywhere.
+
+Retrieval (`/api/knowledge/search` is relational, no RAG/embeddings):
+
+```bash
+# NOTE: imported rows are unverified, so verified=false is required today
+curl --get --data-urlencode domain=family --data-urlencode q=संरक्षक \
+     --data-urlencode verified=false http://127.0.0.1:8000/api/knowledge/search
+curl --get --data-urlencode domain=family --data-urlencode "q=देहायका व्यक्तिहरू" \
+     --data-urlencode verified=false http://127.0.0.1:8000/api/knowledge/search   # Section 141
+```
+
+The default `verified=true` filter intentionally returns nothing for this
+dataset — that is a verification-policy default, not missing data. Nepali
+queries match (substring); English and mixed queries return nothing because
+the corpus is Nepali-only and no translation/embeddings exist yet.
+
 ### Verify the database
 
 ```bash
@@ -193,7 +315,17 @@ TEST_DATABASE_URL=... pytest            # includes integration tests
 ```
 
 Integration tests only run when `TEST_DATABASE_URL` is set and always roll
-back their writes. They never touch `DATABASE_URL`.
+back their writes. They never touch `DATABASE_URL`. They cover the Phase 3C
+contract: domain reuse/creation, stale provision and chunk text refresh,
+idempotency, Section 141, transaction rollback on a mid-import failure,
+non-destructiveness, and a full 721-row round-trip that also asserts the
+import stays set-based. A throwaway database is enough:
+
+```bash
+docker run -d --name sahayak-pg-test -e POSTGRES_PASSWORD=dev_password \
+  -e POSTGRES_USER=sahayak -e POSTGRES_DB=sahayak_test -p 55432:5432 postgres:16-alpine
+TEST_DATABASE_URL="postgresql://sahayak:dev_password@127.0.0.1:55432/sahayak_test" pytest
+```
 
 ### Privacy
 
@@ -268,7 +400,8 @@ backend/
 │   ├── seed_domains.py
 │   ├── validate_legal_csv.py
 │   ├── import_legal_csv.py
-│   └── verify_database.py
+│   ├── verify_database.py
+│   └── verify_phase3c_import.py  # read-only full-dataset verification
 ├── data/
 │   ├── README.md              # CSV schema reference + rules
 │   ├── incoming/              # real verified datasets land here (git-ignored)
@@ -278,7 +411,9 @@ backend/
 │   ├── test_csv_validation.py
 │   ├── test_knowledge_api.py
 │   ├── test_privacy.py
-│   └── integration/test_database.py
+│   └── integration/
+│       ├── test_database.py
+│       └── test_phase3c_import.py  # Phase 3C regression tests
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -297,7 +432,8 @@ STT/TTS, Groq, authentication, or voice processing.
 
 ## Roadmap
 
-- Phase 3 — verified legal CSV dataset ingestion
-- Phase 4 — RAG / pgvector retrieval
+- Phase 3 — verified legal CSV dataset ingestion (3A/3B/3C complete)
+- Phase 4 — RAG / pgvector retrieval (not yet implemented: there is no
+  `POST /api/knowledge/retrieve` endpoint in this tree)
 - Phase 5 — Groq guidance + risk detection
 - Phase 6 — voice-to-voice (STT/TTS)

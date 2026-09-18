@@ -16,10 +16,12 @@ from __future__ import annotations
 
 import csv
 import pathlib
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Sequence
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 import psycopg
 
@@ -41,6 +43,7 @@ EXPECTED_HEADER = (
     "source_url", "verified",
 )
 MIN_CONTENT_LENGTH = 10
+DEFAULT_SOURCE_TYPE = "official_document"
 OFFICIAL_SOURCE_TYPES = {
     "government", "law_commission", "court", "ministry", "police", "regulator",
 }
@@ -85,6 +88,14 @@ class ValidationReport:
 
 @dataclass
 class ImportReport:
+    """Outcome of a single import run.
+
+    ``inserted`` / ``updated`` / ``skipped`` count *rows* and therefore map to
+    knowledge chunks (the retrieval-facing unit). The per-table counters report
+    exactly what changed underneath, so a re-import of unchanged data can be
+    shown to be a genuine no-op.
+    """
+
     file: str = ""
     total: int = 0
     inserted: int = 0
@@ -94,6 +105,23 @@ class ImportReport:
     verified: int = 0
     unverified: int = 0
     failures: list[str] = field(default_factory=list)
+
+    # per-table detail
+    domains_created: int = 0
+    domains_reused: int = 0
+    documents_created: int = 0
+    documents_reused: int = 0
+    sources_created: int = 0
+    sources_reused: int = 0
+    provisions_created: int = 0
+    provisions_updated: int = 0
+    provisions_unchanged: int = 0
+    chunks_created: int = 0
+    chunks_updated: int = 0
+
+    # performance bookkeeping
+    db_operations: int = 0
+    duration_seconds: float = 0.0
 
 
 # --------------------------------------------------------------------------- #
@@ -268,109 +296,355 @@ def _domain_name(key: str) -> str:
     return key
 
 
+def _source_identity(row: CsvRow) -> tuple:
+    """Natural key used to reuse a source row.
+
+    Mirrors ``SourceRepository.get_or_create``: a source with an official URL
+    is identified by that URL (``sources.uq_sources_official_url``); otherwise
+    it falls back to ``(name, source_type)``.
+    """
+    source_type = row.source_type or DEFAULT_SOURCE_TYPE
+    if row.source_url:
+        return ("url", row.source_url)
+    return ("name", row.source_name, source_type)
+
+
 def import_rows(conn: psycopg.Connection, rows: Sequence[CsvRow]) -> ImportReport:
     """Import validated rows on the given connection (caller controls the
     transaction). Deterministic matching prevents duplicate records on re-import.
+
+    Performance contract
+    --------------------
+    No query is ever issued per CSV row. The work is set-based:
+
+    1. prefetch every domain / source / document / provision / chunk that the
+       file could possibly touch (one query per table, keyed to the domains and
+       documents involved)
+    2. decide create / refresh / no-op for each row in memory
+    3. write each affected table with a single batched statement
+
+    A 721-row file therefore costs roughly a dozen network round trips instead
+    of the ~6,500 a per-row loop produces against remote PostgreSQL, which is
+    what made a full Neon import time out. Transactional guarantees are
+    unchanged: every statement runs on the caller's connection and transaction,
+    so a failure rolls the whole import back.
     """
     report = ImportReport(total=len(rows))
+    if not rows:
+        return report
 
-    domains = LegalDomainRepository(conn)
-    documents = LegalDocumentRepository(conn)
-    provisions = LegalProvisionRepository(conn)
-    sources = SourceRepository(conn)
-    chunks = KnowledgeChunkRepository(conn)
-
-    # per (document, provision) chunk_index assignment, stable within a file
-    chunk_indexes: dict[tuple, int] = {}
+    started = time.perf_counter()
     now = datetime.now(timezone.utc)
+    operations = 0
+
+    domains_repo = LegalDomainRepository(conn)
+    documents_repo = LegalDocumentRepository(conn)
+    provisions_repo = LegalProvisionRepository(conn)
+    sources_repo = SourceRepository(conn)
+    chunks_repo = KnowledgeChunkRepository(conn)
+
+    # ---------------------------------------------------------------- domains
+    # Reuse by stable key. Existing metadata (name/description) is never
+    # overwritten — the seeded taxonomy stays authoritative for itself.
+    domain_keys = sorted({row.domain for row in rows})
+    domains = domains_repo.map_by_keys(domain_keys)
+    operations += 1
+    missing_domains = [key for key in domain_keys if key not in domains]
+    if missing_domains:
+        domains.update(
+            domains_repo.create_many(
+                [{"key": key, "name": _domain_name(key)} for key in missing_domains]
+            )
+        )
+        operations += 2
+    report.domains_created = len(missing_domains)
+    report.domains_reused = len(domain_keys) - len(missing_domains)
+
+    # ---------------------------------------------------------------- sources
+    source_identities: dict[tuple, CsvRow] = {}
+    for row in rows:
+        source_identities.setdefault(_source_identity(row), row)
+
+    source_urls = {ident[1] for ident in source_identities if ident[0] == "url"}
+    source_name_pairs = {
+        (ident[1], ident[2]) for ident in source_identities if ident[0] == "name"
+    }
+    sources_by_url = sources_repo.map_by_urls(source_urls)
+    sources_by_name = sources_repo.map_by_name_types(source_name_pairs)
+    operations += 2
+
+    def _lookup_source(ident: tuple) -> dict[str, Any] | None:
+        if ident[0] == "url":
+            return sources_by_url.get(ident[1])
+        return sources_by_name.get((ident[1], ident[2]))
+
+    source_ids: dict[tuple, Any] = {}
+    new_sources: list[dict[str, Any]] = []
+    for ident, row in source_identities.items():
+        existing = _lookup_source(ident)
+        if existing is not None:
+            source_ids[ident] = existing["id"]
+            continue
+        source_type = row.source_type or DEFAULT_SOURCE_TYPE
+        new_sources.append(
+            {
+                "name": row.source_name,
+                "source_type": source_type,
+                "official_url": row.source_url or None,
+                "is_official": source_type in OFFICIAL_SOURCE_TYPES,
+                "is_verified": row.verified,
+                "verified_at": now if row.verified else None,
+            }
+        )
+    reused_sources = len(source_ids)
+    if new_sources:
+        sources_repo.create_many(new_sources)
+        operations += 1
+        sources_by_url = sources_repo.map_by_urls(source_urls)
+        sources_by_name = sources_repo.map_by_name_types(source_name_pairs)
+        operations += 2
+        for ident in source_identities:
+            if ident in source_ids:
+                continue
+            found = _lookup_source(ident)
+            if found is None:
+                raise psycopg.Error(
+                    f"Could not resolve source for identity {ident!r} during import"
+                )
+            source_ids[ident] = found["id"]
+    report.sources_reused = reused_sources
+    report.sources_created = len(source_identities) - reused_sources
+
+    # -------------------------------------------------------------- documents
+    # Reuse by deterministic (domain, title, document_type) — the same key as
+    # the ``uq_legal_documents_domain_title_type`` index.
+    doc_identities: dict[tuple, CsvRow] = {}
+    for row in rows:
+        doc_identities.setdefault(
+            (row.domain, row.document_title, row.document_type), row
+        )
+
+    domain_ids = [domains[key]["id"] for key in domain_keys]
+    existing_documents = documents_repo.list_by_domain_ids(domain_ids)
+    operations += 1
+    documents_by_key = {
+        (d["domain_id"], d["title"], d["document_type"]): d
+        for d in existing_documents
+    }
+
+    doc_ids: dict[tuple, Any] = {}
+    new_documents: list[dict[str, Any]] = []
+    for ident, row in doc_identities.items():
+        domain_id = domains[ident[0]]["id"]
+        found = documents_by_key.get((domain_id, ident[1], ident[2]))
+        if found is not None:
+            doc_ids[ident] = found["id"]
+            continue
+        new_documents.append(
+            {
+                "domain_id": domain_id,
+                "title": row.document_title,
+                "document_type": row.document_type,
+                "official_source_url": row.source_url or None,
+                "language": row.language,
+            }
+        )
+    reused_documents = len(doc_ids)
+    if new_documents:
+        documents_repo.create_many(new_documents)
+        operations += 1
+        for d in documents_repo.list_by_domain_ids(domain_ids):
+            documents_by_key[(d["domain_id"], d["title"], d["document_type"])] = d
+        operations += 1
+        for ident in doc_identities:
+            if ident in doc_ids:
+                continue
+            domain_id = domains[ident[0]]["id"]
+            found = documents_by_key.get((domain_id, ident[1], ident[2]))
+            if found is None:
+                raise psycopg.Error(
+                    f"Could not resolve document for {ident!r} during import"
+                )
+            doc_ids[ident] = found["id"]
+    report.documents_reused = reused_documents
+    report.documents_created = len(doc_identities) - reused_documents
+
+    document_titles = {d["id"]: d["title"] for d in documents_by_key.values()}
+    import_document_ids = list({doc_ids[i] for i in doc_identities})
+
+    # ------------------------------------------------------------- provisions
+    existing_provisions = provisions_repo.list_by_document_ids(import_document_ids)
+    operations += 1
+    provisions_by_number: dict[tuple, dict[str, Any]] = {}
+    unnumbered_by_content: dict[tuple, list[dict[str, Any]]] = {}
+    for p in existing_provisions:
+        if p["provision_number"] is not None:
+            provisions_by_number[(p["document_id"], p["provision_number"])] = p
+        else:
+            unnumbered_by_content.setdefault(
+                (p["document_id"], p["text"], p["title"]), []
+            ).append(p)
+
+    provision_inserts: list[dict[str, Any]] = []
+    provision_updates: list[tuple] = []
+
+    # chunk_index is assigned per (document, provision) exactly as the
+    # per-row implementation did, so indexes stay stable across runs.
+    chunk_indexes: dict[tuple, int] = {}
+    prepared: list[dict[str, Any]] = []
 
     for row in rows:
-        domain = domains.upsert(row.domain, _domain_name(row.domain))
-        document, _ = documents.get_or_create(
-            domain["id"], row.document_title, row.document_type,
-            official_source_url=row.source_url, language=row.language,
-        )
-        source, _ = sources.get_or_create(
-            name=row.source_name,
-            source_type=row.source_type or "official_document",
-            official_url=row.source_url,
-            is_official=row.source_type in OFFICIAL_SOURCE_TYPES,
-            is_verified=row.verified,
-            verified_at=now if row.verified else None,
-        )
+        document_id = doc_ids[(row.domain, row.document_title, row.document_type)]
+        source_id = source_ids[_source_identity(row)]
 
-        provision = None
         if row.provision_number:
-            provision, _ = provisions.get_or_create(
-                document_id=document["id"],
-                text=row.content,
-                provision_number=row.provision_number,
-                title=row.provision_title,
-                language=row.language,
-            )
-
-        key = (document["id"], provision["id"] if provision else None)
-        chunk_indexes[key] = chunk_indexes.get(key, 0) + 1
-        chunk_index = chunk_indexes[key]
-
-        existing = chunks.find_existing(
-            document["id"],
-            provision["id"] if provision else None,
-            chunk_index,
-            row.language,
-        )
-
-        fields = dict(
-            title=row.provision_title or document["title"],
-            content=row.content,
-            language=row.language,
-            chunk_index=chunk_index,
-            source_type=row.source_type or "official_document",
-            is_verified=row.verified,
-            verified_at=now if row.verified else None,
-        )
-
-        try:
+            existing = provisions_by_number.get((document_id, row.provision_number))
             if existing is None:
-                chunks.create(
-                    document_id=document["id"],
-                    provision_id=provision["id"] if provision else None,
-                    domain_id=domain["id"],
-                    source_id=source["id"],
-                    **fields,
+                provision_id = uuid4()
+                provision_inserts.append(
+                    {
+                        "id": provision_id,
+                        "document_id": document_id,
+                        "provision_number": row.provision_number,
+                        "title": row.provision_title,
+                        "text": row.content,
+                        "language": row.language,
+                    }
                 )
-                report.inserted += 1
             else:
-                changed = any(existing.get(k) != v for k, v in fields.items())
-                if changed:
-                    chunks._execute(
-                        """
-                        UPDATE knowledge_chunks SET
-                            title = %s, content = %s, language = %s,
-                            chunk_index = %s, source_type = %s,
-                            is_verified = %s, verified_at = %s, updated_at = now()
-                        WHERE id = %s
-                        """,
-                        (
-                            fields["title"], fields["content"], fields["language"],
-                            fields["chunk_index"], fields["source_type"],
-                            fields["is_verified"], fields["verified_at"],
-                            existing["id"],
-                        ),
+                provision_id = existing["id"]
+                if (
+                    existing["text"] != row.content
+                    or existing["title"] != row.provision_title
+                ):
+                    # Stale legal text (e.g. a pre-Phase-3B import) is refreshed
+                    # in place from the validated dataset.
+                    provision_updates.append(
+                        (row.content, row.provision_title, provision_id)
                     )
-                    report.updated += 1
+                    existing["text"] = row.content
+                    existing["title"] = row.provision_title
+                    report.provisions_updated += 1
                 else:
-                    report.skipped += 1
-        except psycopg.Error as exc:
-            report.failed += 1
-            report.failures.append(f"Row {row.row_number}: database error ({exc})")
-            raise
-
-        if row.verified:
-            report.verified += 1
+                    report.provisions_unchanged += 1
         else:
-            report.unverified += 1
+            pool = unnumbered_by_content.get(
+                (document_id, row.content, row.provision_title)
+            )
+            if pool:
+                provision_id = pool.pop(0)["id"]
+                report.provisions_unchanged += 1
+            else:
+                provision_id = uuid4()
+                provision_inserts.append(
+                    {
+                        "id": provision_id,
+                        "document_id": document_id,
+                        "provision_number": None,
+                        "title": row.provision_title,
+                        "text": row.content,
+                        "language": row.language,
+                    }
+                )
 
+        key = (document_id, provision_id)
+        chunk_indexes[key] = chunk_indexes.get(key, 0) + 1
+
+        prepared.append(
+            {
+                "row": row,
+                "document_id": document_id,
+                "domain_id": domains[row.domain]["id"],
+                "source_id": source_id,
+                "provision_id": provision_id,
+                "chunk_index": chunk_indexes[key],
+            }
+        )
+
+    report.provisions_created = len(provision_inserts)
+
+    # ----------------------------------------------------------------- chunks
+    existing_chunks = chunks_repo.list_by_document_ids(import_document_ids)
+    operations += 1
+    chunks_by_key = {
+        (c["document_id"], c["provision_id"], c["chunk_index"], c["language"]): c
+        for c in existing_chunks
+    }
+
+    chunk_inserts: list[dict[str, Any]] = []
+    chunk_updates: list[tuple] = []
+
+    for item in prepared:
+        row = item["row"]
+        fields = {
+            "title": row.provision_title or document_titles.get(item["document_id"]),
+            "content": row.content,
+            "language": row.language,
+            "chunk_index": item["chunk_index"],
+            "source_type": row.source_type or DEFAULT_SOURCE_TYPE,
+            "is_verified": row.verified,
+            "verified_at": now if row.verified else None,
+        }
+        existing = chunks_by_key.get(
+            (
+                item["document_id"],
+                item["provision_id"],
+                item["chunk_index"],
+                row.language,
+            )
+        )
+        if existing is None:
+            chunk_inserts.append(
+                {
+                    "id": uuid4(),
+                    "document_id": item["document_id"],
+                    "provision_id": item["provision_id"],
+                    "domain_id": item["domain_id"],
+                    "source_id": item["source_id"],
+                    **fields,
+                }
+            )
+        elif any(existing.get(k) != v for k, v in fields.items()):
+            chunk_updates.append(
+                (
+                    fields["title"], fields["content"], fields["language"],
+                    fields["chunk_index"], fields["source_type"],
+                    fields["is_verified"], fields["verified_at"], existing["id"],
+                )
+            )
+        else:
+            report.skipped += 1
+
+    # ----------------------------------------------------------------- writes
+    # Documents/domains/sources are already written above (provisions and
+    # chunks depend on them). Everything below stays on the caller's
+    # transaction: any error rolls the whole import back.
+    try:
+        if provision_inserts:
+            provisions_repo.create_many(provision_inserts)
+            operations += 1
+        if provision_updates:
+            provisions_repo.update_text_many(provision_updates)
+            operations += 1
+        if chunk_inserts:
+            chunks_repo.create_many(chunk_inserts)
+            operations += 1
+        if chunk_updates:
+            chunks_repo.update_content_many(chunk_updates)
+            operations += 1
+    except psycopg.Error as exc:
+        report.failed += len(rows)
+        report.failures.append(f"Database error during bulk import: {exc}")
+        raise
+
+    report.inserted = len(chunk_inserts)
+    report.chunks_created = len(chunk_inserts)
+    report.updated = len(chunk_updates)
+    report.chunks_updated = len(chunk_updates)
+    report.verified = sum(1 for row in rows if row.verified)
+    report.unverified = len(rows) - report.verified
+    report.db_operations = operations
+    report.duration_seconds = time.perf_counter() - started
     return report
 
 

@@ -67,6 +67,49 @@ class LegalDocumentRepository(BaseRepository):
             (domain_id, title, document_type),
         )
 
+    def list_by_domain_ids(self, domain_ids: Sequence[Any]) -> list[dict[str, Any]]:
+        """Fetch every document for the given domains in one query."""
+        domain_ids = list(domain_ids)
+        if not domain_ids:
+            return []
+        return self._fetch_all(
+            "SELECT * FROM legal_documents WHERE domain_id = ANY(%s)",
+            (domain_ids,),
+        )
+
+    def list_by_ids(self, doc_ids: Sequence[Any]) -> list[dict[str, Any]]:
+        doc_ids = list(doc_ids)
+        if not doc_ids:
+            return []
+        return self._fetch_all(
+            "SELECT * FROM legal_documents WHERE id = ANY(%s)", (doc_ids,)
+        )
+
+    def create_many(self, items: Sequence[dict[str, Any]]) -> None:
+        """Insert several documents in one batch, ignoring existing rows."""
+        if not items:
+            return
+        self._executemany(
+            """
+            INSERT INTO legal_documents (
+                id, domain_id, title, short_title, document_type, jurisdiction,
+                issuing_authority, official_source_url, language, effective_date,
+                status, description
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING
+            """,
+            [
+                (
+                    i.get("id") or uuid4(), i["domain_id"], i["title"],
+                    i.get("short_title"), i["document_type"], i.get("jurisdiction"),
+                    i.get("issuing_authority"), i.get("official_source_url"),
+                    i.get("language"), i.get("effective_date"), i.get("status"),
+                    i.get("description"),
+                )
+                for i in items
+            ],
+        )
+
     def get_or_create(
         self,
         domain_id,

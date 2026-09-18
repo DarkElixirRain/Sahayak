@@ -31,3 +31,18 @@ class BaseRepository:
     def _execute(self, query: str, params: Sequence[Any] | None = None) -> None:
         with self.conn.cursor() as cur:
             cur.execute(query, params or ())
+
+    def _executemany(
+        self, query: str, params_seq: Sequence[Sequence[Any]]
+    ) -> int:
+        """Run one statement for many parameter tuples in a single batch.
+
+        Used by bulk import paths so a 700-row CSV costs a handful of network
+        round trips instead of one per row. Returns the number of affected rows
+        reported by the driver.
+        """
+        if not params_seq:
+            return 0
+        with self.conn.cursor() as cur:
+            cur.executemany(query, list(params_seq))
+            return cur.rowcount

@@ -61,6 +61,64 @@ class KnowledgeChunkRepository(BaseRepository):
             (document_id, provision_id, chunk_index, language),
         )
 
+    def list_by_document_ids(
+        self, document_ids: Sequence[Any]
+    ) -> list[dict[str, Any]]:
+        """Fetch every chunk for the given documents in one query."""
+        document_ids = list(document_ids)
+        if not document_ids:
+            return []
+        return self._fetch_all(
+            "SELECT * FROM knowledge_chunks WHERE document_id = ANY(%s)",
+            (document_ids,),
+        )
+
+    def create_many(self, items: Sequence[dict[str, Any]]) -> None:
+        """Insert several chunks in one batch."""
+        if not items:
+            return
+        self._executemany(
+            """
+            INSERT INTO knowledge_chunks (
+                id, document_id, provision_id, domain_id, source_id, title,
+                content, language, chunk_index, source_type, is_verified,
+                verified_at
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            [
+                (
+                    i["id"], i["document_id"], i.get("provision_id"),
+                    i.get("domain_id"), i.get("source_id"), i.get("title"),
+                    i["content"], i.get("language"), i.get("chunk_index"),
+                    i.get("source_type"), i.get("is_verified", False),
+                    i.get("verified_at"),
+                )
+                for i in items
+            ],
+        )
+
+    def update_content_many(self, updates: Sequence[tuple]) -> None:
+        """Refresh stale chunk fields in one batch.
+
+        Each tuple is ``(title, content, language, chunk_index, source_type,
+        is_verified, verified_at, id)``. Only called for chunks whose stored
+        content actually differs from the validated dataset, and never touches
+        ``document_id`` / ``provision_id`` / ``domain_id`` / ``source_id`` so
+        provenance links survive a text refresh.
+        """
+        if not updates:
+            return
+        self._executemany(
+            """
+            UPDATE knowledge_chunks
+            SET title = %s, content = %s, language = %s, chunk_index = %s,
+                source_type = %s, is_verified = %s, verified_at = %s,
+                updated_at = now()
+            WHERE id = %s
+            """,
+            list(updates),
+        )
+
     # --- retrieval helpers (plain relational queries; no RAG/embeddings) ---
 
     def find_by_domain(
