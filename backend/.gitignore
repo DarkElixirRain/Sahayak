@@ -19,3 +19,7 @@ build/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Private datasets (never commit confidential legal data)
+data/incoming/*
+!data/incoming/.gitkeep

@@ -1,0 +1,4 @@
+domain,document_title,document_type,provision_number,provision_title,content,language,source_name,source_type,source_url,verified
+consumer,Development Sample Act,act,1,Short Title,"DEVELOPMENT ONLY - NOT LEGAL CONTENT. Sample provision demonstrating CSV import. उपभोक्ता संरक्षण उदाहरण।",nepali,Development Sample Source,official_document,https://example.invalid/dev-sample,false
+consumer,Development Sample Act,act,2,Commencement,"DEVELOPMENT ONLY - NOT LEGAL CONTENT. Another synthetic row with Nepali text. सम्पत्ति सम्बन्धी उदाहरण। अदालत। कानून।",nepali,Development Sample Source,official_document,https://example.invalid/dev-sample,false
+land_property,Development Land Sample Rule,rule,1,"Preliminary","DEVELOPMENT ONLY - NOT LEGAL CONTENT. Synthetic land rule example for importer testing. जग्गा सम्बन्धी उदाहरण।",nepali,Development Sample Source,official_document,https://example.invalid/dev-land-rule,false
