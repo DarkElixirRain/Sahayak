@@ -9,6 +9,7 @@ class Settings:
     app_name: str = os.getenv("APP_NAME", "Sahayak")
     app_version: str = os.getenv("APP_VERSION", "0.1.0")
     environment: str = os.getenv("ENVIRONMENT", "development")
+    database_url: str = os.getenv("DATABASE_URL", "")
     cors_origins: list[str] = [
         origin.strip()
         for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")

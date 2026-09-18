@@ -40,7 +40,13 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Then edit `.env` as needed.
+Then edit `.env` as needed. For Neon Postgres, set `DATABASE_URL` to your project's connection string, e.g.:
+
+```
+DATABASE_URL=postgresql://USER:PASSWORD@HOST.us-east-2.aws.neon.tech/DATABASE?sslmode=require
+```
+
+The backend connects to the database through a psycopg connection pool initialized on startup. The app relies on `DATABASE_URL`; if it is empty the pool is skipped.
 
 ### 4. Run the FastAPI server
 
@@ -59,14 +65,16 @@ You can also use:
 - ReDoc: http://127.0.0.1:8000/redoc
 - Root endpoint: http://127.0.0.1:8000/
 - Health check: http://127.0.0.1:8000/api/health
+- Database check: http://127.0.0.1:8000/api/health/db
 
 ## Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── main.py            # FastAPI app, CORS, root endpoint
+│   ├── main.py            # FastAPI app, CORS, root endpoint, lifespan
 │   ├── config.py          # Settings loaded from .env
+│   ├── db.py              # psycopg connection pool
 │   ├── api/
 │   │   └── routes.py      # API routes
 │   ├── schemas/
@@ -84,8 +92,7 @@ backend/
 Future additions planned:
 
 - Groq LLM integration
-- RAG / legal knowledge base
-- PostgreSQL + pgvector
+- RAG / legal knowledge base (pgvector)
 - Speech-to-text
 - Text-to-speech
 - Risk detection
