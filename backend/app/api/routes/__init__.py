@@ -1,0 +1,1 @@
+"""API route modules. Each router uses the /api prefix via the app main router."""

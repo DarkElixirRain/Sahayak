@@ -1,54 +1,74 @@
 # Sahayak Backend
 
-Backend for **Sahayak**, an AI-powered voice-based rights and safety assistant.
+**SAHAYAK — Your Voice. Your Rights. Your Protection.**
 
-Built with Python 3.11+ and FastAPI.
+Backend for Sahayak, an AI-powered voice-first legal and safety companion
+for underserved communities in Nepal.
 
-## Tech Stack
+## Current Phase
+
+```
+Phase 1 — Backend Foundation
+```
+
+## Project
+
+A modular FastAPI monolith designed so later phases (speech-to-text,
+conversation handling, risk engine, knowledge base, Groq LLM guidance,
+text-to-speech) can be added as independent, testable components.
+
+## Requirements
 
 - Python 3.11+
-- FastAPI
-- Uvicorn
-- Pydantic
-- python-dotenv
 
-## Getting Started
-
-### 1. Create a virtual environment
+## Setup
 
 From the `backend/` directory:
 
 ```bash
-python3 -m venv .venv
+python -m venv .venv
 ```
 
 Activate it:
 
-```bash
-source .venv/bin/activate
-```
+- Windows: `.venv\Scripts\activate`
+- macOS/Linux: `source .venv/bin/activate`
 
-### 2. Install requirements
+Install dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Create the `.env` file
+Create the `.env` file:
 
 ```bash
 cp .env.example .env
 ```
 
-Then edit `.env` as needed. For Neon Postgres, set `DATABASE_URL` to your project's connection string, e.g.:
+Then edit `.env` as needed.
 
+## Environment
+
+```env
+DATABASE_URL=
+GROQ_API_KEY=
+APP_ENV=
+LOG_LEVEL=
+CORS_ORIGINS=
 ```
-DATABASE_URL=postgresql://USER:PASSWORD@HOST.us-east-2.aws.neon.tech/DATABASE?sslmode=require
-```
 
-The backend connects to the database through a psycopg connection pool initialized on startup. The app relies on `DATABASE_URL`; if it is empty the pool is skipped.
+- `DATABASE_URL` — Neon Postgres connection string. Leave empty to disable database features.
+- `GROQ_API_KEY` — Groq LLM provider key (used in later phases, not Phase 1).
+- `APP_ENV` — `development`, `staging`, or `production`.
+- `LOG_LEVEL` — logging level, e.g. `INFO`.
+- `CORS_ORIGINS` — comma-separated allowed origins, e.g. `http://localhost:3000,http://localhost:8080`.
 
-### 4. Run the FastAPI server
+Do not commit real secret values.
+
+## Run
+
+From the `backend/` directory:
 
 ```bash
 uvicorn app.main:app --reload
@@ -56,44 +76,69 @@ uvicorn app.main:app --reload
 
 The server runs at http://127.0.0.1:8000
 
-### 5. Open the Swagger API documentation
+## Tests
 
-Visit http://127.0.0.1:8000/docs in your browser.
+```bash
+pytest
+```
 
-You can also use:
+Tests use a planned-in dependency (FastAPI `TestClient`) and never require a
+live database or Groq connection.
 
+## API
+
+```text
+GET /api/health
+GET /api/health/db
+GET /api/system/info
+```
+
+- `GET /` — welcome response
+- `GET /api/health` — application health
+- `GET /api/health/db` — database health (`SELECT 1` against the pool)
+- `GET /api/system/info` — service, environment, version (no secrets)
+
+Interactive docs:
+
+- Swagger UI: http://127.0.0.1:8000/docs
 - ReDoc: http://127.0.0.1:8000/redoc
-- Root endpoint: http://127.0.0.1:8000/
-- Health check: http://127.0.0.1:8000/api/health
-- Database check: http://127.0.0.1:8000/api/health/db
 
 ## Project Structure
 
 ```
 backend/
 ├── app/
-│   ├── main.py            # FastAPI app, CORS, root endpoint, lifespan
-│   ├── config.py          # Settings loaded from .env
-│   ├── db.py              # psycopg connection pool
+│   ├── main.py            # FastAPI app entry point (create_app, lifespan, CORS)
+│   ├── core/
+│   │   ├── config.py      # typed settings from environment
+│   │   ├── logging.py     # privacy-safe logging setup
+│   │   └── exceptions.py  # consistent structured error responses
 │   ├── api/
-│   │   └── routes.py      # API routes
+│   │   ├── router.py      # central /api router
+│   │   └── routes/
+│   │       ├── health.py  # GET /health, GET /health/db
+│   │       └── system.py  # GET /system/info
+│   ├── db/
+│   │   └── session.py     # psycopg connection pool lifecycle + health check
+│   ├── models/
+│   │   └── base.py        # base record for future persistence models
 │   ├── schemas/
-│   │   └── health.py      # Pydantic response models
-│   └── services/
-├── .env
-├── .env.example
-├── .gitignore
+│   │   ├── health.py      # HealthResponse, DatabaseHealthResponse
+│   │   └── system.py      # SystemInfoResponse
+│   └── services/          # placeholder for future business-logic services
+├── tests/
+│   └── test_health.py
 ├── requirements.txt
+├── .env.example
 └── README.md
 ```
 
-## Roadmap
+## Architecture Notes
 
-Future additions planned:
+- `schemas` = external API contracts (Pydantic)
+- `services` = business logic (future phases)
+- `repositories` = database access (future phases)
+- `models` = persistence structures (future phases)
 
-- Groq LLM integration
-- RAG / legal knowledge base (pgvector)
-- Speech-to-text
-- Text-to-speech
-- Risk detection
-- Voice/chat endpoints
+Phase 1 deliberately does not implement AI features, authentication, business
+database tables, or voice processing.

@@ -1,6 +1,13 @@
+"""External API contracts (Pydantic models)."""
+
 from pydantic import BaseModel
 
 
 class HealthResponse(BaseModel):
     status: str
-    message: str
+    service: str
+
+
+class DatabaseHealthResponse(BaseModel):
+    status: str
+    database: str
