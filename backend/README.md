@@ -392,7 +392,9 @@ backend/
 │   │   ├── system.py          # Phase 1 responses
 │   │   └── knowledge.py       # read-only knowledge responses
 │   ├── services/
-│   │   └── csv_importer.py    # CSV validation + atomic import pipeline
+│   │   ├── csv_importer.py    # CSV validation + atomic import pipeline
+│   │   ├── knowledge_retrieval.py  # Phase 4 ranked legal retrieval
+│   │   └── conversation.py    # Phase 5 grounded conversation engine
 │   └── models/
 │       └── base.py            # base record for future persistence models
 ├── scripts/
@@ -411,9 +413,13 @@ backend/
 │   ├── test_csv_validation.py
 │   ├── test_knowledge_api.py
 │   ├── test_privacy.py
+│   ├── test_retrieval.py      # Phase 4 unit tests
+│   ├── test_conversation.py   # Phase 5 unit tests
 │   └── integration/
 │       ├── test_database.py
-│       └── test_phase3c_import.py  # Phase 3C regression tests
+│       ├── test_phase3c_import.py      # Phase 3C regression tests
+│       ├── test_phase4_retrieval.py    # Phase 4 DB integration
+│       └── test_phase5_conversation.py # Phase 5 DB integration
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -433,7 +439,80 @@ STT/TTS, Groq, authentication, or voice processing.
 ## Roadmap
 
 - Phase 3 — verified legal CSV dataset ingestion (3A/3B/3C complete)
-- Phase 4 — RAG / pgvector retrieval (not yet implemented: there is no
-  `POST /api/knowledge/retrieve` endpoint in this tree)
-- Phase 5 — Groq guidance + risk detection
+- Phase 4 — legal retrieval: `POST /api/knowledge/retrieve` (implemented)
+- Phase 5 — conversation engine: `POST /api/conversations/{session_id}/messages`
+  (implemented — see the known gaps below)
 - Phase 6 — voice-to-voice (STT/TTS)
+
+## Phase 4 / Phase 5 status and known gaps
+
+Verified after the initial implementation was repaired. What works:
+
+- `POST /api/knowledge/retrieve` returns ranked, source-traceable provisions
+  (content x1.0, title x0.3, domain x0.1), honouring `top_k`, `minimum_score`,
+  `domain_id`, `document_title`, `verified_only` and `search_type`.
+- Matching is parameterised PostgreSQL `ILIKE` (psycopg 3) — **not** full-text
+  search, and **not** vector search. No pgvector/embeddings are used.
+- `POST /api/conversations/{session_id}/messages` persists a user turn, grounds
+  an answer on verified provisions and returns citations, follow-up questions,
+  confidence and a disclaimer; `GET /api/conversations/{session_id}` returns
+  session status and message count.
+
+Known gaps (deliberately not changed here — they need product decisions):
+
+1. **No LLM.** The conversation engine performs no model call: it assembles the
+   answer from retrieved provision text plus fixed strings. There is no Groq /
+   httpx / OpenAI client anywhere in the tree.
+2. **`verified_only=True` is hard-coded** for conversation retrieval. With the
+   current corpus (724 chunks, 0 verified) the engine therefore always takes
+   its no-retrieval fallback path and never grounds an answer. This is safe but
+   makes the feature inert until content is verified or the policy changes.
+3. **The no-retrieval fallback hard-codes an assistant identity**
+   ("मेरा नाम नेमोट्रॉन हो ...") in garbled mixed-script Nepali/Hindi. It is
+   user-visible on the main fallback path of a legal-aid tool.
+4. **Whole-string matching.** The retriever applies the *entire* normalized
+   query as a single `%...%` pattern, so a natural sentence matches nothing.
+   Retrieval only succeeds for short/single-term queries. Term-based matching
+   would fix it but changes Phase 4 scoring semantics.
+5. **All 724 imported rows are `is_verified = false`**, so default retrieval
+   (`verified=true`) hides the corpus until human re-verification.
+6. `chunk_index` is `1` for every imported chunk (one chunk per provision), so
+   it is not a per-document sequence.
+
+### Repair notes (what was broken and why)
+
+- **Phase 4 SQL layer did not work under any driver.** It imported `psycopg2`
+  (not a dependency) and built SQL with `sql.SQL(...).sql % sql.Literal(...)`, an
+  attribute that exists on neither psycopg 2 (`SQL.string`) nor psycopg 3. It was
+  rewritten as parameterised `%s` queries, matching every other repository.
+- **Phase 4/5 code also did not parse** (`compileall` failed): a list literal
+  containing dict syntax in `routes/knowledge.py`, an unterminated string in
+  `services/knowledge_retrieval.py`, and a missing opening quote in
+  `services/conversation.py`.
+- **Router prefixes were doubled** (`/api/api/...`), breaking the existing
+  Phase 2 routes; both routers now carry no `/api` prefix of their own.
+- **Route/service name collisions** made `retrieve_knowledge` recurse into
+  itself.
+- **Conversation persistence was broken**: the repository called non-existent
+  `add_user_message`/`add_assistant_message`, `_execute` discarded `RETURNING`
+  rows, and `conversation_messages.session_id` (a FK to `conversation_sessions.id`)
+  was being given the caller-facing key. Session keys are now normalised to a
+  stable UUID and messages join through the session row.
+- **Nested transactions**: the service opened its own connection while the route
+  held an uncommitted one, so the session row was invisible and every grounded
+  reply failed as `DATABASE_UNAVAILABLE` (503). The route now passes its
+  connection through, keeping one turn in one transaction.
+- **Client errors were masked as 503**: `get_connection()` converts *any*
+  exception raised inside its block, including `HTTPException`. Routes must
+  raise after the block exits (as the knowledge routes do); the conversation GET
+  route was fixed to match.
+
+Run the phase suites with a throwaway database:
+
+```bash
+TEST_DATABASE_URL=postgresql://user:pass@127.0.0.1:5432/sahayak_test \
+  python -m pytest tests/test_retrieval.py tests/test_conversation.py \
+                   tests/integration -q
+```
+
+Without `TEST_DATABASE_URL` the integration modules skip (57 tests).

@@ -1,19 +1,37 @@
-"""Read-only knowledge endpoints (Phase 2 & 4).
+"""Knowledge endpoints (Phase 2 read-only + Phase 4 retrieval).
 
-Phase 2: Basic search endpoints.
-Phase 4: RAG / legal retrieval engine - POST /api/knowledge/retrieve
-with structured response, multilingual support, ranking, and source traceability.
+Phase 2: `GET /api/knowledge/domains`, `GET /api/knowledge/search`
+Phase 4: `POST /api/knowledge/retrieve` — structured, ranked, source-traceable
+retrieval of legal provisions.
+
+The router prefix is `/knowledge`: the application mounts this router under the
+global `/api` prefix (``app.include_router(api_router, prefix="/api")``), so
+adding `/api` here would produce `/api/api/knowledge/...`.
+
+None of these endpoints gives legal advice. They only return stored, sourced
+legal content and metadata.
 """
 
-from fastapi import APIRouter, HTTPException, Body
+from typing import Any, Optional
 
+from fastapi import APIRouter, Body, HTTPException
+
+from app.core.exceptions import ApiError
 from app.db.session import get_connection
 from app.repositories.knowledge_chunks import KnowledgeChunkRepository
 from app.repositories.legal_domains import LegalDomainRepository
 from app.schemas.knowledge import DomainOut, KnowledgeChunkOut
-from app.services.knowledge_retrieval import retrieve_legal_context
+from app.services.knowledge_retrieval import (
+    DEFAULT_SEARCH_TYPE,
+    MAX_QUERY_LENGTH,
+    MAX_SCORE,
+    SEARCH_TYPES,
+    retrieve_legal_context,
+)
 
-router = APIRouter(prefix="/api/knowledge", tags=["knowledge"])
+router = APIRouter(prefix="/knowledge", tags=["knowledge"])
+
+TOP_K_MAX = 50
 
 
 @router.get("/domains", response_model=list[DomainOut])
@@ -24,8 +42,8 @@ def list_domains(active_only: bool = True):
 
 @router.get("/search", response_model=list[KnowledgeChunkOut])
 def search_knowledge(
-    domain: str | None = None,
-    q: str | None = None,
+    domain: Optional[str] = None,
+    q: Optional[str] = None,
     verified: bool = True,
     limit: int = 20,
 ):
@@ -52,20 +70,24 @@ def search_knowledge(
 
 
 @router.post("/retrieve", response_model=dict[str, Any])
-def retrieve_legal_context(
+def retrieve_knowledge(
     request: dict[str, Any] = Body(
         ...,
         description={
             "Input": {
-                "query": "User legal question in Nepali or English or mixed",
-                "top_k": "Number of results to return (default: 5)",
-                "optional filters": [
-                    "domain_id": "Filter by legal domain key",
-                    "document_title": "Filter by document title",
+                "query": "User legal question in Nepali, English or mixed",
+                "top_k": f"Number of results to return (default: 5, max: {TOP_K_MAX})",
+                "optional filters": {
+                    "domain_id": "Filter by legal domain key (or UUID)",
+                    "document_title": "Filter by document title (or document UUID)",
                     "verified_only": "Only return verified content (default: True)",
-                    "search_type": "Keyword title content domain (default: keyword)",
-                    "minimum_score": "Minimum relevance score threshold (default: 0.3)",
-                ],
+                    "search_type": (
+                        "One of: " + ", ".join(SEARCH_TYPES) + " (default: keyword)"
+                    ),
+                    "minimum_score": (
+                        f"Minimum relevance score, 0.0 to {MAX_SCORE} (default: 0.3)"
+                    ),
+                },
                 "examples": [
                     "मेरो पैतृक सम्पत्तिमा मेरो अधिकार के हो?",
                     "property partition",
@@ -78,36 +100,66 @@ def retrieve_legal_context(
 ):
     """Retrieve legal provisions relevant to a user's legal question.
 
-    This is a read-only retrieval endpoint that returns structured legal provisions
-    from the database. It does NOT generate legal advice, answers, or guidance.
+    Read-only retrieval: returns structured legal provisions from the database.
+    It does NOT generate legal advice, answers, or guidance.
 
-    The retrieval pipeline:
-    1. Query preprocessing: Unicode NFC normalization + whitespace + case normalization
-    2. Candidate retrieval: PostgreSQL ILIKE across title and content with optional filters
-    3. Ranking: Explainable composite score (title match + content match + domain match)
-    4. Top-K selection: Return only top_k results above minimum_score
+    Pipeline:
 
-    Returns structured records with full source traceability:
-    - document_id, document_title, section_number, section_title
-    - content, domain, source, source_url
-    - score (0.0 to 1.0, explainable relevance signals)
-    - is_verified: bool
+    1. Query preprocessing — Unicode NFC normalization, whitespace collapse
+    2. Candidate retrieval — parameterized ILIKE across title / content / domain
+       with optional domain, document, verification and chunk-index filters
+    3. Ranking — explainable composite score
+       (`content_match * 1.0 + title_match * 0.3 + domain_match * 0.1`)
+    4. Selection — drop results below `minimum_score`, return the top `top_k`
 
-    Never returns anonymous legal text - every result traces back to a source row.
+    Every result carries full source traceability: `document_id`,
+    `document_title`, `section_number`, `section_title`, `content`, `domain`,
+    `source`, `source_url`, `score`, `is_verified`, `chunk_index`. Anonymous
+    legal text is never returned.
     """
-    query = request.get("query", "")
-    top_k = request.get("top_k", 5)
-    domain_id = request.get("domain_id")
-    document_title = request.get("document_title")
-    verified_only = request.get("verified_only", True)
-    search_type = request.get("search_type", "keyword")
-    minimum_score = request.get("minimum_score", 0.3)
+    query = request.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise ApiError(
+            "VALIDATION_ERROR", "query must be a non-empty string.", 422
+        )
+    if len(query) > MAX_QUERY_LENGTH:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            f"query must be at most {MAX_QUERY_LENGTH} characters.",
+            422,
+        )
 
-    # Validate inputs
-    if not isinstance(query, str):
-        raise HTTPException(status_code=422, detail="query must be a string")
-    top_k = max(1, min(top_k, 50))
-    minimum_score = max(0.0, min(1.0, minimum_score))
+    top_k = request.get("top_k", 5)
+    if isinstance(top_k, bool) or not isinstance(top_k, int):
+        raise ApiError("VALIDATION_ERROR", "top_k must be an integer.", 422)
+    top_k = max(1, min(top_k, TOP_K_MAX))
+
+    minimum_score = request.get("minimum_score", 0.3)
+    if isinstance(minimum_score, bool) or not isinstance(minimum_score, (int, float)):
+        raise ApiError("VALIDATION_ERROR", "minimum_score must be a number.", 422)
+    minimum_score = max(0.0, min(float(minimum_score), MAX_SCORE))
+
+    search_type = request.get("search_type", DEFAULT_SEARCH_TYPE)
+    if not isinstance(search_type, str) or search_type not in SEARCH_TYPES:
+        raise ApiError(
+            "VALIDATION_ERROR",
+            "search_type must be one of: " + ", ".join(SEARCH_TYPES) + ".",
+            422,
+        )
+
+    domain_id = request.get("domain_id")
+    if domain_id is not None and not isinstance(domain_id, str):
+        raise ApiError("VALIDATION_ERROR", "domain_id must be a string.", 422)
+
+    document_title = request.get("document_title")
+    if document_title is not None and not isinstance(document_title, str):
+        raise ApiError(
+            "VALIDATION_ERROR", "document_title must be a string.", 422
+        )
+
+    verified_only = request.get("verified_only", True)
+    if not isinstance(verified_only, bool):
+        raise ApiError("VALIDATION_ERROR", "verified_only must be a boolean.", 422)
 
     result = retrieve_legal_context(
         query=query,
@@ -119,13 +171,9 @@ def retrieve_legal_context(
         search_type=search_type,
     )
 
-    if result["total_found"] == 0 and query:
-        # Return empty results rather than error - retrieval is best-effort
-        return {
-            "query": query,
-            "normalized_query": result["normalized_query"],
-            "results": [],
-            "total_found": 0,
-        }
+    # Unknown domain / unusable document filter is a client error, matching
+    # the 404 semantics of GET /knowledge/search for an unknown domain.
+    if result.get("error"):
+        raise HTTPException(status_code=404, detail=result["error"])
 
     return result

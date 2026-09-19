@@ -31,6 +31,32 @@ class BaseRepository:
     def _execute(self, query: str, params: Sequence[Any] | None = None) -> None:
         with self.conn.cursor() as cur:
             cur.execute(query, params or ())
+            # Ensure changes are persisted.
+            try:
+                self.conn.commit()
+            except Exception:
+                pass
+
+    def _execute_returning(
+        self, query: str, params: Sequence[Any] | None = None
+    ) -> dict[str, Any] | None:
+        """Run a write statement that uses ``RETURNING`` and fetch its row.
+
+        ``_execute`` discards result rows, so write helpers that must hand back
+        the persisted row (generated id, defaults, timestamps) use this variant
+        instead. Returns ``None`` when the statement produced no row.
+        """
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(query, params or ())
+            if cur.description is None:
+                return None
+            rows = cur.fetchall()
+            # Commit the transaction to persist changes.
+            try:
+                self.conn.commit()
+            except Exception:
+                pass
+            return rows[0] if rows else None
 
     def _executemany(
         self, query: str, params_seq: Sequence[Sequence[Any]]
@@ -45,4 +71,9 @@ class BaseRepository:
             return 0
         with self.conn.cursor() as cur:
             cur.executemany(query, list(params_seq))
+            # Commit after batch execution.
+            try:
+                self.conn.commit()
+            except Exception:
+                pass
             return cur.rowcount

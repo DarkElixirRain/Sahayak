@@ -1,0 +1,71 @@
+feature,component,current_status,evidence,problem,required_change,priority,implemented,tested,notes
+LLM Configuration,config.py / llm.py,BROKEN,LLM_MODEL=openai/gpt-oss-120b in .env.example and settings defaults,Not a valid Groq model — will get HTTP 404 from Groq API,Change default LLM_MODEL to a valid Groq model (e.g. llama-3.3-70b-versatile or llama-3.1-8b-instant),1,NO,NO,Groq models list: https://console.groq.com/docs/models
+Knowledge Chunk Verification,knowledge_chunks table / csv_importer.py,BROKEN,SELECT COUNT(*) WHERE is_verified=TRUE returns 0,All 724 chunks are unverified — verified_only=True retrieval always returns empty,Verify the authoritative Muluki Dewani Samhita chunks via migration + script,1,NO,NO,Do NOT bulk-mark verified without checking provenance. Need migration 010 to add selective verification.
+Case Context Persistence,services/case_context.py / conversation.py,BROKEN,CaseContextManager stores dict in-memory; ConversationService() created per request,Each request gets a fresh CaseContextManager with no history — case context never accumulates across turns,Persist case_context as JSONB in conversation_sessions OR make CaseContextManager a module-level singleton,1,NO,NO,Module-level singleton would work within single worker. For multi-worker need DB persistence.
+LLM Model Default,app/core/config.py,BROKEN,llm_model default set to openai/gpt-oss-120b,Hardcoded broken model name in code,Fix Settings.llm_model default to a valid working Groq model,1,NO,NO,
+Grounded Generation Pipeline,services/conversation.py,BROKEN,Depends on verified chunks existing,No verified chunks means generate_grounded_response always falls to no_match path — never calls LLM,Fix chunk verification first then test generation pipeline,1,NO,NO,
+Follow-up Questions (non-repetitive),services/conversation.py,BROKEN,_generate_context_aware_follow_ups reads CaseContextManager,CaseContextManager is fresh per request so all fields appear missing — same follow-ups on every turn,Fix CaseContextManager lifecycle so context persists across turns in same session,1,NO,NO,
+Health Endpoints,app/api/routes/health.py,COMPLETE,test_health.py passes 8/8 tests,None,None,8,YES,YES,
+System Info Endpoint,app/api/routes/system.py,COMPLETE,test_health.py passes,None,None,8,YES,YES,
+Database Schema,app/db/migrations/,COMPLETE,All 9 migrations applied; all indexes present,None,None,8,YES,NO,Integration tests skipped (no TEST_DATABASE_URL)
+Repository Pattern,app/repositories/,COMPLETE,All repositories have CRUD + batch operations,None,None,8,YES,NO,Integration tests skipped
+Knowledge Domains API,app/api/routes/knowledge.py,COMPLETE,GET /api/knowledge/domains works,None,None,7,YES,YES,
+Knowledge Search API (lexical),app/api/routes/knowledge.py,PARTIAL,GET /api/knowledge/search works but verified=true always returns empty,All chunks unverified — search with verified=true returns 0 results,Verify knowledge chunks,2,YES,NO,
+Legal Retrieval Engine,services/knowledge_retrieval.py,PARTIAL,retrieve_legal_context() exists with ranking and scoring,0 verified chunks means all verified_only=True queries return no_match,Verify chunks and test retrieval,2,YES,NO,
+Retrieval — Nepali language,services/knowledge_retrieval.py,COMPLETE,Devanagari-aware token regex; NFC normalization,None,Minor: Romanized Nepali (latin script) not specifically handled beyond standard tokenization,3,YES,YES,
+Retrieval — Romanized Nepali,services/knowledge_retrieval.py,PARTIAL,Latin tokens work via standard word-char regex,Romanized Nepali (malai/garyo etc) are not in stop word list and tokenize correctly but no specific synonym expansion,Add common Romanized Nepali terms to retrieval for better matching,3,YES,NO,
+Retrieval — English,services/knowledge_retrieval.py,COMPLETE,English terms tokenize and match correctly,None,None,3,YES,YES,
+Retrieval — Mixed language,services/knowledge_retrieval.py,COMPLETE,Both Devanagari and Latin tokens extracted from same query,None,None,3,YES,YES,
+Retrieval — verified_only filter,services/knowledge_retrieval.py,PARTIAL,Filter exists and is enforced,0 verified chunks makes it always return no_match,Fix verification state of authoritative chunks,2,YES,NO,
+Retrieval — citation traceability,services/knowledge_retrieval.py,COMPLETE,Every result includes chunk_id/document_id/provision_id/source,None,None,6,YES,YES,
+Retrieval — score ranking,services/knowledge_retrieval.py,COMPLETE,Explainable weighted score: content*1.0 + title*0.3 + domain*0.1,None,None,3,YES,YES,
+CSV Import Pipeline,services/csv_importer.py,COMPLETE,Idempotent batch import with validation,None,Minor: dev sample data remains in DB,2,YES,NO,Integration tests skipped
+Import — idempotency,services/csv_importer.py,COMPLETE,Unique constraints prevent duplicate records,None,None,2,YES,NO,Integration tests skipped
+Import — validation,services/csv_importer.py,COMPLETE,Required fields checked; duplicate detection; URL validation,None,None,2,YES,YES,
+Import — verification flag,services/csv_importer.py,PARTIAL,verified=true/false taken from CSV,Muluki Dewani Samhita CSV has verified=false — so all its chunks are unverified,Provide CSV with verified=true for authoritative Muluki Dewani content,2,YES,NO,
+Import — Nepali Unicode handling,services/csv_importer.py,COMPLETE,UTF-8/UTF-8-BOM reading; NFC normalization in retrieval,None,None,2,YES,YES,
+Import — provenance preservation,services/csv_importer.py,COMPLETE,source_id linked to every chunk,None,None,2,YES,NO,Integration tests skipped
+Conversation Sessions,repositories/conversation.py,COMPLETE,create_session / get_session / update_status persisted in DB,None,Non-UUID session keys silently map via uuid5 (documented),5,YES,NO,
+Conversation Messages,repositories/conversation.py,COMPLETE,add_message / list_session_messages persisted in DB,None,clock_timestamp() used correctly to avoid same-tx timestamp collision,5,YES,NO,
+Conversation History (multi-turn memory),services/conversation.py,PARTIAL,get_recent_context() fetches last N messages from DB,History fetched from DB correctly BUT case context not rebuilt from history,Case context should be rebuilt from message history on each turn,4,YES,NO,
+Case Context Extraction,services/conversation.py,PARTIAL,_extract_case_context() extracts fields from current message,Only extracts from current message text — does not rebuild from prior messages,Fix CaseContextManager lifecycle; optionally rebuild from history,4,YES,NO,
+Case Context — 15-day deadline extraction,services/conversation.py,PARTIAL,regex r'(\d+)\s*दिन' matches Devanagari digit sequences,Nepali Devanagari digits (१५) not matched — only ASCII digits matched,Add Devanagari digit support to deadline extraction regex,4,YES,NO,Nepali digits: ०=0 १=1 २=2 ... ९=9
+Issue Classification,services/conversation.py,PARTIAL,_classify_intent() keyword classification,Only keyword-based; no confidence score; limited Romanized Nepali coverage,Improve keyword coverage especially for Romanized Nepali,4,YES,NO,
+Jurisdiction Intelligence,services/conversation.py,PARTIAL,_extract_case_context extracts court/location from keywords,Only a handful of cities; no province inference beyond Kathmandu/Pokhara,Expand jurisdiction patterns,4,YES,NO,
+Query Reformulation,services/conversation.py,MISSING,Raw query passed directly to retrieval,No enrichment from case context / prior turns / legal terminology,Build reformulated query from case_context + current query before retrieval,3,NO,NO,High impact: better retrieval without verification fix
+Deadline Intelligence,services/conversation.py,PARTIAL,ASCII digit patterns matched,Nepali/Devanagari digits (१५ दिनभित्र) not extracted,Translate Devanagari digits before regex matching,4,YES,NO,१=1 २=2 etc
+LLM Provider Abstraction,services/llm.py,COMPLETE,OpenAICompatibleProvider with error types,None,None,5,YES,YES,
+LLM Provider — error handling,services/llm.py,COMPLETE,LLMTimeoutError / LLMProviderError / LLMMalformedResponseError,None,None,5,YES,YES,
+LLM Provider — no secrets in logs,services/llm.py,COMPLETE,API key never logged or returned,None,None,5,YES,YES,
+LLM Provider — graceful failure,services/llm.py,COMPLETE,get_llm_provider() returns None when unconfigured,None,None,5,YES,YES,
+LLM Provider — retry strategy,services/llm.py,MISSING,No retry on transient failures,A single timeout/503 kills the request permanently,Implement exponential backoff for timeout/5xx errors,8,NO,NO,Low priority — timeout=30s mitigates most cases
+Grounding — system prompt,services/legal_grounding.py,COMPLETE,7 grounding rules + fence + language instruction,None,None,5,YES,YES,
+Grounding — prompt injection defense,services/legal_grounding.py,COMPLETE,_FENCE_RE strips fence tags from retrieved content,None,None,5,YES,YES,
+Grounding — citations from DB rows,services/legal_grounding.py,COMPLETE,build_citations() uses only retrieval row fields,None,None,6,YES,YES,
+Grounding — context block fencing,services/legal_grounding.py,COMPLETE,<legal_context> fence prevents data-as-instructions,None,None,5,YES,YES,
+Grounding — language detection,services/legal_grounding.py,COMPLETE,Devanagari vs Latin script detection,None,None,5,YES,YES,
+Grounding — fallback answers,services/legal_grounding.py,COMPLETE,Bilingual fallbacks for no_match / unavailable / error,None,None,5,YES,YES,
+Response Schema,schemas/conversation.py,COMPLETE,ConversationResponse with status/grounded/generation/citations/follow_up_questions,None,None,5,YES,YES,
+Security — SQL injection,services/knowledge_retrieval.py,COMPLETE,All queries parameterised; LIKE metachar escaped,None,None,8,YES,YES,
+Security — prompt injection,services/legal_grounding.py,COMPLETE,Context fenced + fence tags stripped from data,None,None,8,YES,YES,
+Security — secret exposure,core/config.py / core/exceptions.py,COMPLETE,API key never in logs/errors; stack traces not returned to client,None,None,8,YES,YES,
+Security — authentication,app/api/,MISSING,No authentication on any endpoint,All endpoints publicly accessible,Implement API key or JWT authentication,1,NO,NO,Critical for production
+Security — rate limiting,app/api/,MISSING,No rate limiting,Unlimited requests per IP/session,Implement rate limiting middleware,8,NO,NO,
+Security — CORS,app/main.py,PARTIAL,CORS configured but default allows localhost:3000 and localhost:8080,In production this should be locked to actual frontend origins,Tighten CORS origins for production,8,YES,NO,
+API validation — request bodies,All routes,COMPLETE,Invalid bodies rejected with structured errors,None,None,8,YES,YES,
+API pagination,GET /api/knowledge/search,PARTIAL,limit parameter exists (max 100),No cursor/offset-based pagination,Add offset parameter for larger result sets,7,YES,NO,
+API documentation,FastAPI OpenAPI,PARTIAL,Auto-generated from type annotations,Retrieve endpoint has inline description doc; others minimal,Add proper docstrings and response_model examples,7,YES,NO,
+Logging — structured,app/core/logging.py,PARTIAL,Basic formatted console logging,No request ID / correlation ID / structured JSON logs,Add request ID middleware and structured logging,8,YES,NO,
+Logging — no secrets,app/core/logging.py,COMPLETE,Privacy comment explicitly prohibits secret logging,None,None,8,YES,YES,
+Error handling — controlled,app/core/exceptions.py,COMPLETE,All exception types mapped; no stack traces to client,None,None,8,YES,YES,
+Error handling — database,app/db/session.py,COMPLETE,Any pool exception → DatabaseUnavailableError (503),None,None,8,YES,YES,
+Connection pooling,app/db/session.py,PARTIAL,min_size=1 max_size=5 psycopg-pool,No connection timeout config; no health check interval,Consider adding reconnect policy for Neon's idle disconnects,8,YES,NO,
+Database — duplicate sources,sources table,BROKEN,2 rows with name=Development Sample Source,No uniqueness constraint on (name, source_type) when no URL,Migration or cleanup script needed,1,NO,NO,
+Database — duplicate documents,legal_documents table,PARTIAL,3 copies of Muluki Dewani Samhita across 3 domains,By design? Same law in multiple domain contexts is allowed by schema,Decide: consolidate or keep per-domain copies,2,NO,NO,Each copy has different domain_id for domain-filtered retrieval
+Dev data cleanup,knowledge_chunks / legal_documents,PARTIAL,Dev sample data remains,DEVELOPMENT ONLY content in production,Provide migration or cleanup script,2,NO,NO,Do NOT delete production data via DROP/TRUNCATE
+Integration tests — TEST_DATABASE_URL,tests/integration/,BLOCKED,67 tests skip without TEST_DATABASE_URL,Cannot verify DB-level behavior without test database,Set up TEST_DATABASE_URL and run integration tests,7,NO,NO,
+E2E test — 6-turn canonical scenario,tests/,MISSING,test_6turn_conversation.py exists but is manual/external,No automated E2E test in pytest suite,Create automated 6-turn E2E test,7,NO,NO,
+Document intelligence foundation,app/,MISSING,No document upload/extraction infrastructure,Cannot process PDFs or court notices,Design file metadata + storage abstraction,8,NO,NO,Low priority for initial release
+Legal currentness metadata,legal_documents table,MISSING,effective_date and status columns exist but all NULL,Cannot communicate amendment/repeal status,Populate effective_date and status for imported documents,2,NO,NO,
+Court case repository,repositories/court_cases.py,PARTIAL,Repository exists; table has 0 rows,No verified court decisions imported,Requires verified court decision source,2,YES,NO,
+Government resources repository,repositories/government_resources.py,PARTIAL,Repository exists; table has 0 rows,No government resources imported,Requires data entry or import pipeline,2,YES,NO,

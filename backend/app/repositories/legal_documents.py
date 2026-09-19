@@ -85,6 +85,19 @@ class LegalDocumentRepository(BaseRepository):
             "SELECT * FROM legal_documents WHERE id = ANY(%s)", (doc_ids,)
         )
 
+    def list_by_titles(self, titles: Sequence[str]) -> list[dict[str, Any]]:
+        """Fetch every document whose title matches any of ``titles``.
+
+        Titles are not unique across domains (a law imported once per domain
+        repeats its title), so callers filter on the returned id list.
+        """
+        titles = list(titles)
+        if not titles:
+            return []
+        return self._fetch_all(
+            "SELECT * FROM legal_documents WHERE title = ANY(%s)", (titles,)
+        )
+
     def create_many(self, items: Sequence[dict[str, Any]]) -> None:
         """Insert several documents in one batch, ignoring existing rows."""
         if not items:

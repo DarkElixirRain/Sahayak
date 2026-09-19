@@ -1,752 +1,383 @@
-"""Comprehensive tests for Phase 4: RAG & Legal Retrieval Engine.
+"""Unit tests for Phase 4 retrieval: normalization, query building, ranking
+constants, and the `POST /api/knowledge/retrieve` API contract.
 
-Tests cover:
-- Nepali query support
-- English query support
-- Mixed-language query support
-- Exact section search
-- Title search
-- Content search
-- Domain filtering
-- Document filtering
-- top-k behavior
-- Score threshold
-- Empty query
-- Whitespace query
-- Unicode normalization
-- No results
-- Ranking determinism
-- Source metadata
-- Verification status
-- Malformed input
+These tests are deliberately **database-free**: the retrieval service is
+mocked, so the suite runs anywhere (no `DATABASE_URL`, no pool). Real
+retrieval against PostgreSQL is covered separately by
+``tests/integration/test_phase4_retrieval.py``.
+
+History: the original Phase 4 test file patched
+``app.api.routes.knowledge.get_connection``, which the service does not use
+(it resolves ``get_connection`` from ``app.db.session``), so the "mocked" tests
+silently hit the real database and several asserted nothing about the
+application at all. Those defects are corrected here.
 """
 
-import sys
-import os
-from unittest.mock import patch, MagicMock
-from pathlib import Path
+from unittest.mock import patch
 
-# Ensure the app package is importable
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.services.knowledge_retrieval import (
+    CONTENT_WEIGHT,
+    DOMAIN_WEIGHT,
+    MAX_SCORE,
+    SEARCH_TYPES,
+    TITLE_WEIGHT,
+    _build_search_clause,
+    _normalize_query,
+)
 
 client = TestClient(app, raise_server_exceptions=False)
 
+SERVICE = "app.api.routes.knowledge.retrieve_legal_context"
 
-# ============================================================
-# Test: Query Normalization
-# ============================================================
-
-def test_nepali_query_normalization():
-    """Nepali Devanagari queries should be normalized via Unicode NFC."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # Nepali query with repeated whitespace
-    result = _normalize_query("  मरो   पैतृक   सम्पत्तिमा   अधिकार   के   हो?  ")
-    assert isinstance(result, str)
-    # Should not have duplicate spaces
-    assert "  " not in result
-    # Should be NFC normalized and lowercased
-    assert result == result.lower()
+NEPALI_141_QUERY = "देहायका व्यक्तिहरू"
 
 
-def test_english_query_normalization():
-    """English queries should be normalized via Unicode NFC + whitespace."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    result = _normalize_query("  property   partition  ")
-    assert isinstance(result, str)
-    assert "  " not in result
-    assert result == result.lower()
-
-
-def test_mixed_language_query_normalization():
-    """Mixed Nepali/English queries should preserve both."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    result = _normalize_query("जग्गा dispute")
-    assert isinstance(result, str)
-    # Should contain both nepali and english normalized forms
-    assert len(result) > 0
-
-
-def test_whitespace_query():
-    """Whitespace-only query should return empty results."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    result = _normalize_query("   ")
-    assert result == ""
-
-
-def test_empty_query():
-    """Empty query should return empty results."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    result = _normalize_query("")
-    assert result == ""
-
-
-# ============================================================
-# Test: Retrieval Service Integration (mocked)
-# ============================================================
-
-@patch("app.api.routes.knowledge.get_connection")
-def test_retrieve_legal_context_with_mocked_db(mock_get_connection):
-    """Test retrieve endpoint with mocked database connection."""
-    import uuid
-    
-    # Setup mock connection and repositories
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    # Mock LegalDomainRepository
-    mock_dom_repo = MagicMock()
-    mock_dom_repo.get_by_id.return_value = {"id": uuid.uuid4(), "key": "consumer", "name": "Consumer"}
-    mock_get_connection.return_value.__enter__.return_value.__class__.LegalDomainRepository = lambda self: mock_dom_repo
-    
-    # Mock KnowledgeChunkRepository
-    mock_chunk_repo = MagicMock()
-    
-    # Create a sample chunk result
-    sample_chunk = {
-        "id": str(uuid.uuid4()),
-        "document_id": str(uuid.uuid4()),
-        "provision_id": str(uuid.uuid4()) if hasattr(uuid, 'uuid4') else None,
-        "domain_id": uuid.uuid4(),
-        "source_id": str(uuid.uuid4()) if hasattr(uuid, 'uuid4') else None,
-        "title": "Test Provision Title",
-        "content": "This content discusses property partition rights and what happens when a family divides ancestral property among legal heirs.",
-        "language": "nepali",
-        "chunk_index": 1,
-        "is_verified": True,
+def _ok_result(**overrides):
+    """A well-formed service response usable as a mocked return value."""
+    payload = {
+        "query": NEPALI_141_QUERY,
+        "normalized_query": NEPALI_141_QUERY,
+        "results": [
+            {
+                "document_id": "91e32e59-c125-4a28-936d-3101bdf69b1a",
+                "document_title": "मुलुकी देवानी संहिता, २०७४",
+                "section_number": "141",
+                "section_title": "संरक्षक हुन नसक्ने",
+                "content": "देहायका व्यक्तिहरू संरक्षक हुन सक्नेछन्।",
+                "domain": "family",
+                "source": "नेपाल कानून आयोग (Nepal Law Commission)",
+                "source_url": "https://lawcommission.gov.np/content/13455/civil-code-2074",
+                "score": 1.1,
+                "is_verified": False,
+                "chunk_index": 1,
+            }
+        ],
+        "total_found": 1,
     }
-    mock_chunk_repo.search.return_value = [sample_chunk]
-    
-    # We need to patch the retrieve_legal_context function or test the endpoint
-    # For now, let's verify the endpoint structure
-    pass
+    payload.update(overrides)
+    return payload
 
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_retrieve_endpoint_empty_query(mock_get_connection):
-    """Test that empty query returns proper empty result."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    # Mock to return empty
-    from app.services.knowledge_retrieval import retrieve_legal_context
-    
-    # Test with empty query
-    result = retrieve_legal_context(
-        query="",
-        top_k=5,
-        minimum_score=0.3,
-    )
-    
-    assert result["query"] == ""
-    assert result["normalized_query"] == ""
-    assert result["results"] == []
-    assert result["total_found"] == 0
+# --------------------------------------------------------------------------- #
+# Query normalization
+# --------------------------------------------------------------------------- #
+
+def test_normalize_collapses_whitespace_and_lowercases():
+    assert _normalize_query("  Property   Partition  ") == "property partition"
 
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_retrieve_endpoint_no_results(mock_get_connection):
-    """Test that query with no matches returns empty results."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    from app.services.knowledge_retrieval import retrieve_legal_context
-    
-    # Query that won't match anything
-    result = retrieve_legal_context(
-        query="completely unrelated search term xyz123",
-        top_k=5,
-        minimum_score=0.3,
-    )
-    
-    assert result["total_found"] == 0
-    assert result["results"] == []
+def test_normalize_nepali_query():
+    result = _normalize_query("  संरक्षक   हुन   नसक्ने  ")
+    assert result == "संरक्षक हुन नसक्ने"
+    assert "  " not in result
 
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_retrieve_endpoint_with_domain_filter(mock_get_connection):
-    """Test retrieval with domain filtering."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    from app.services.knowledge_retrieval import retrieve_legal_context
-    from app.repositories.legal_domains import LegalDomainRepository
-    
-    # First validate domain exists
-    dom_repo = LegalDomainRepository(mock_conn)
-    # Test with valid domain - we'll need to set up the mock properly
-    # For now verify the function signature works
-    
-    result = retrieve_legal_context(
-        query="property",
-        top_k=5,
-        minimum_score=0.3,
-        domain_id="consumer",  # valid domain key
-    )
-    
-    # Should return results (even if 0 due to mock)
-    assert "query" in result
-    assert "normalized_query" in result
+def test_normalize_mixed_language_query_preserves_both_scripts():
+    result = _normalize_query("जग्गा dispute")
+    assert "जग्गा" in result
+    assert "dispute" in result
 
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_retrieve_endpoint_with_verified_filter(mock_get_connection):
-    """Test retrieval with verified_only filtering."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    from app.services.knowledge_retrieval import retrieve_legal_context
-    
-    # Test with verified_only=True (default)
-    result_verified = retrieve_legal_context(
-        query="property",
-        top_k=5,
-        minimum_score=0.3,
-        verified_only=True,
-    )
-    
-    # Test with verified_only=False
-    result_unverified = retrieve_legal_context(
-        query="property",
-        top_k=5,
-        minimum_score=0.3,
-        verified_only=False,
-    )
-    
-    # Both should return structured results
-    assert "query" in result_verified
-    assert "query" in result_unverified
-    assert "normalized_query" in result_verified
+def test_normalize_empty_query_returns_empty():
+    assert _normalize_query("") == ""
 
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_retrieve_endpoint_multilingual_queries(mock_get_connection):
-    """Test multilingual query support (Nepali, English, mixed)."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    from app.services.knowledge_retrieval import retrieve_legal_context
-    
-    # Nepali query
-    result_nepali = retrieve_legal_context(
-        query="सम्पत्ति बाँडफाँड कसरी हुन्छ?",
-        top_k=5,
-        minimum_score=0.3,
-    )
-    assert "query" in result_nepali
-    assert "normalized_query" in result_nepali
-    
-    # English query
-    result_english = retrieve_legal_context(
-        query="property partition",
-        top_k=5,
-        minimum_score=0.3,
-    )
-    assert "query" in result_english
-    assert "normalized_query" in result_english
-    
-    # Mixed query
-    result_mixed = retrieve_legal_context(
-        query="जग्गा dispute",
-        top_k=5,
-        minimum_score=0.3,
-    )
-    assert "query" in result_mixed
-    assert "normalized_query" in result_mixed
+def test_normalize_whitespace_only_query_returns_empty():
+    assert _normalize_query("   \t\n  ") == ""
 
 
-# ============================================================
-# Test: API Endpoint
-# ============================================================
+def test_normalize_is_idempotent():
+    for raw in ("मरो पैतृक सम्पत्तिमा अधिकार", "property partition",
+                "जग्गा dispute", "a  b"):
+        once = _normalize_query(raw)
+        assert _normalize_query(once) == once
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_api_retrieve_endpoint_structure(mock_get_connection):
-    """Test the POST /api/knowledge/retrieve endpoint returns correct structure."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    from app.services.knowledge_retrieval import retrieve_legal_context
-    
-    # Mock retrieve_legal_context to return known results
-    with patch("app.api.routes.knowledge.retrieve_legal_context") as mock_retrieve:
-        mock_retrieve.return_value = {
-            "query": "मरो पैतृक सम्पत्तिमा अधिकार के हो?",
-            "normalized_query": "mero paitrkul sampttimama hak ko ho?",
-            "results": [
-                {
-                    "document_id": "11111111-1111-1111-1111-111111111111",
-                    "document_title": "Muluki Dewani Samhita 2074",
-                    "section_number": "Section 3",
-                    "section_title": "Property Rights",
-                    "content": "Provisions regarding ancestral property division.",
-                    "domain": "family",
-                    "source": "Law Commission Nepal",
-                    "source_url": "https://lawcommission.gov.np",
-                    "score": 0.87,
-                    "is_verified": True,
-                    "chunk_index": 1,
-                }
-            ],
-            "total_found": 1,
-        }
-        
-        # Test the endpoint
+
+def test_normalize_case_variants_converge():
+    for raw in ("PROPERTY", "Property", "property", "PROPERTY PARTITION"):
+        assert _normalize_query(raw) == _normalize_query(raw).lower()
+
+
+def test_normalize_strips_edges_but_keeps_punctuation():
+    assert _normalize_query("  संरक्षक?  ") == "संरक्षक?"
+
+
+def test_normalize_leaves_uuid_like_strings_usable():
+    value = "11111111-1111-1111-1111-111111111111"
+    assert _normalize_query(value) == value
+
+
+# --------------------------------------------------------------------------- #
+# Search clause construction
+# --------------------------------------------------------------------------- #
+
+def test_keyword_clause_matches_title_and_content():
+    clause, params = _build_search_clause("x", "keyword")
+    assert "c.title ILIKE" in clause and "c.content ILIKE" in clause
+    assert params == ["%x%", "%x%"]
+
+
+def test_title_clause_matches_only_title():
+    clause, params = _build_search_clause("x", "title")
+    assert clause == "c.title ILIKE %s"
+    assert params == ["%x%"]
+
+
+def test_content_clause_matches_only_content():
+    clause, params = _build_search_clause("x", "content")
+    assert clause == "c.content ILIKE %s"
+    assert params == ["%x%"]
+
+
+def test_domain_clause_uses_the_legal_domains_key_column():
+    """Regression: the original used `d.key`, but the key lives on
+    legal_domains (dm) — `legal_documents` has no `key` column."""
+    clause, params = _build_search_clause("family", "domain")
+    assert clause == "dm.key ILIKE %s"
+    assert params == ["%family%"]
+
+
+@pytest.mark.parametrize("bad", ["bogus", "", "KEYWORD", "fulltext"])
+def test_unknown_search_type_falls_back_to_keyword(bad):
+    clause, _ = _build_search_clause("x", bad)
+    assert clause == _build_search_clause("x", "keyword")[0]
+
+
+def test_every_declared_search_type_is_buildable():
+    for search_type in SEARCH_TYPES:
+        clause, params = _build_search_clause("x", search_type)
+        assert "%s" in clause
+        assert params
+
+
+# --------------------------------------------------------------------------- #
+# Ranking constants
+# --------------------------------------------------------------------------- #
+
+def test_score_weights_match_the_documented_values():
+    assert CONTENT_WEIGHT == 1.0
+    assert TITLE_WEIGHT == 0.3
+    assert DOMAIN_WEIGHT == 0.1
+    assert MAX_SCORE == pytest.approx(1.4)
+
+
+# --------------------------------------------------------------------------- #
+# API contract — successful response
+# --------------------------------------------------------------------------- #
+
+def test_retrieve_endpoint_returns_service_payload():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
         response = client.post(
+            "/api/knowledge/retrieve", json={"query": NEPALI_141_QUERY}
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["query"] == NEPALI_141_QUERY
+    assert body["total_found"] == 1
+    assert len(body["results"]) == 1
+    mocked.assert_called_once()
+
+
+def test_retrieve_result_exposes_full_source_traceability():
+    with patch(SERVICE, return_value=_ok_result()):
+        body = client.post(
+            "/api/knowledge/retrieve", json={"query": NEPALI_141_QUERY}
+        ).json()
+
+    result = body["results"][0]
+    for key in (
+        "document_id", "document_title", "section_number", "section_title",
+        "content", "domain", "source", "source_url", "score", "is_verified",
+        "chunk_index",
+    ):
+        assert key in result, key
+
+    assert result["document_id"]
+    assert result["document_title"]
+    assert result["section_number"] == "141"
+    assert result["source"]
+    assert result["source_url"].startswith("https://")
+
+
+def test_retrieve_forwards_request_fields_to_the_service():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post(
             "/api/knowledge/retrieve",
             json={
-                "query": "मरो पैतृक सम्पत्तिमा अधिकार के हो?",
-                "top_k": 5,
-            }
-        )
-        
-        assert response.status_code == 200
-        body = response.json()
-        
-        # Verify response structure
-        assert "query" in body
-        assert "normalized_query" in body
-        assert "results" in body
-        assert "total_found" in body
-        
-        # Verify result structure
-        assert len(body["results"]) > 0
-        result = body["results"][0]
-        assert "document_id" in result
-        assert "document_title" in result
-        assert "section_number" in result
-        assert "section_title" in result
-        assert "content" in result
-        assert "domain" in result
-        assert "source" in result
-        assert "source_url" in result
-        assert "score" in result
-        assert "is_verified" in result
-        assert "chunk_index" in result
-        
-        # Verify source traceability
-        assert result["source_url"] is not None or result["source_url"] == ""
-        # Never return anonymous legal text - source should be present
-        assert result["source"] != ""
-
-
-@patch("app.api.routes.knowledge.get_connection")
-def test_api_retrieve_endpoint_english_query(mock_get_connection):
-    """Test the endpoint with English query."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    with patch("app.api.routes.knowledge.retrieve_legal_context") as mock_retrieve:
-        mock_retrieve.return_value = {
-            "query": "property partition",
-            "normalized_query": "property partition",
-            "results": [],
-            "total_found": 0,
-        }
-        
-        response = client.post(
-            "/api/knowledge/retrieve",
-            json={"query": "property partition", "top_k": 3}
-        )
-        
-        assert response.status_code == 200
-        body = response.json()
-        assert body["query"] == "property partition"
-
-
-@patch("app.api.routes.knowledge.get_connection")
-def test_api_retrieve_endpoint_with_filters(mock_get_connection):
-    """Test the endpoint with domain and other filters."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    with patch("app.api.routes.knowledge.retrieve_legal_context") as mock_retrieve:
-        mock_retrieve.return_value = {
-            "query": "divorce procedure",
-            "normalized_query": "divorce procedure",
-            "results": [
-                {
-                    "document_id": "22222222-2222-2222-2222-222222222222",
-                    "document_title": "Civil Code",
-                    "section_number": "Article 22",
-                    "section_title": "Divorce",
-                    "content": "Divorce procedures and requirements.",
-                    "domain": "family",
-                    "source": "Law Commission Nepal",
-                    "source_url": "https://lawcommission.gov.np/civil-code",
-                    "score": 0.91,
-                    "is_verified": True,
-                    "chunk_index": 1,
-                }
-            ],
-            "total_found": 1,
-        }
-        
-        response = client.post(
-            "/api/knowledge/retrieve",
-            json={
-                "query": "divorce procedure",
-                "top_k": 5,
-                "domain_id": "family",
-                "verified_only": True,
+                "query": NEPALI_141_QUERY,
+                "top_k": 7,
                 "minimum_score": 0.5,
-            }
+                "domain_id": "family",
+                "document_title": "मुलुकी देवानी संहिता, २०७४",
+                "verified_only": False,
+                "search_type": "title",
+            },
         )
-        
-        assert response.status_code == 200
-        body = response.json()
-        assert body["query"] == "divorce procedure"
-        assert body["total_found"] == 1
-        assert body["results"][0]["domain"] == "family"
+
+    kwargs = mocked.call_args.kwargs
+    assert kwargs["query"] == NEPALI_141_QUERY
+    assert kwargs["top_k"] == 7
+    assert kwargs["minimum_score"] == 0.5
+    assert kwargs["domain_id"] == "family"
+    assert kwargs["document_filter"] == ["मुलुकी देवानी संहिता, २०७४"]
+    assert kwargs["verified_only"] is False
+    assert kwargs["search_type"] == "title"
 
 
-@patch("app.api.routes.knowledge.get_connection")
-def test_api_retrieve_endpoint_score_threshold(mock_get_connection):
-    """Test the endpoint with minimum_score filter."""
-    mock_conn = MagicMock()
-    mock_get_connection.return_value.__enter__.return_value = mock_conn
-    mock_get_connection.return_value.__exit__.return_value = None
-    
-    with patch("app.api.routes.knowledge.retrieve_legal_context") as mock_retrieve:
-        mock_retrieve.return_value = {
-            "query": "test query",
-            "normalized_query": "test query",
-            "results": [
-                {"score": 0.95, "is_verified": True},
-                {"score": 0.55, "is_verified": True},
-                {"score": 0.25, "is_verified": False},  # below threshold
-            ],
-            "total_found": 3,
-        }
-        
+def test_retrieve_forwards_document_filter_as_none_when_absent():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post("/api/knowledge/retrieve", json={"query": "x"})
+    assert mocked.call_args.kwargs["document_filter"] is None
+
+
+def test_retrieve_defaults_are_verified_only_true_and_keyword():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post("/api/knowledge/retrieve", json={"query": "x"})
+    kwargs = mocked.call_args.kwargs
+    assert kwargs["verified_only"] is True
+    assert kwargs["search_type"] == "keyword"
+    assert kwargs["top_k"] == 5
+    assert kwargs["minimum_score"] == 0.3
+
+
+def test_retrieve_top_k_is_clamped_to_the_documented_range():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post("/api/knowledge/retrieve", json={"query": "x", "top_k": 9999})
+        assert mocked.call_args.kwargs["top_k"] == 50
+
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post("/api/knowledge/retrieve", json={"query": "x", "top_k": 0})
+        assert mocked.call_args.kwargs["top_k"] == 1
+
+
+def test_retrieve_minimum_score_is_clamped_to_the_score_range():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post(
+            "/api/knowledge/retrieve", json={"query": "x", "minimum_score": -5}
+        )
+        assert mocked.call_args.kwargs["minimum_score"] == 0.0
+
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post(
+            "/api/knowledge/retrieve", json={"query": "x", "minimum_score": 99}
+        )
+        assert mocked.call_args.kwargs["minimum_score"] == pytest.approx(MAX_SCORE)
+
+
+def test_retrieve_empty_results_are_a_valid_200_response():
+    empty = {"query": "x", "normalized_query": "x", "results": [], "total_found": 0}
+    with patch(SERVICE, return_value=empty):
+        response = client.post("/api/knowledge/retrieve", json={"query": "x"})
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+    assert response.json()["total_found"] == 0
+
+
+def test_retrieve_unknown_domain_becomes_404():
+    error = {
+        "query": "x", "normalized_query": "x", "results": [], "total_found": 0,
+        "error": "Unknown domain_id: nope",
+    }
+    with patch(SERVICE, return_value=error):
         response = client.post(
-            "/api/knowledge/retrieve",
-            json={"query": "test query", "top_k": 10, "minimum_score": 0.4}
+            "/api/knowledge/retrieve", json={"query": "x", "domain_id": "nope"}
         )
-        
-        assert response.status_code == 200
-        body = response.json()
-        # Only results with score >= 0.4 should be included
-        assert len(body["results"]) <= 3
-        # All returned results should have score >= 0.4
-        for r in body["results"]:
-            assert r["score"] >= 0.4
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
-# ============================================================
-# Test: Ranking Determinism
-# ============================================================
+# --------------------------------------------------------------------------- #
+# API contract — malformed input (structured 422s)
+# --------------------------------------------------------------------------- #
 
-def test_ranking_determinism():
-    """Test that retrieval ranking is deterministic for same query."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # Same query should always normalize to same result
-    q = "  Property   Partition  "
-    result1 = _normalize_query(q)
-    result2 = _normalize_query(q)
-    assert result1 == result2
-    assert result1 == "property partition"
+def _assert_validation_error(response):
+    assert response.status_code == 422, response.text
+    body = response.json()
+    assert body["error"]["code"] == "VALIDATION_ERROR"
+    assert body["error"]["message"]
 
 
-def test_ranking_with_different_queries():
-    """Test that different queries produce different normalized forms."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    queries = [
-        "Property Partition",
-        "property partition",
-        "PROPERTY PARTITION",
-        "  property   partition  ",
-    ]
-    
-    normalized = [_normalize_query(q) for q in queries]
-    
-    # All should normalize to the same form (lowercase, no extra whitespace)
-    assert all(n == "property partition" for n in normalized)
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},                      # missing query
+        {"query": None},         # null
+        {"query": 123},          # number
+        {"query": {"a": 1}},     # object
+        {"query": ["a"]},        # array
+        {"query": True},         # bool is not a string
+        {"query": ""},           # empty
+        {"query": "   "},        # whitespace only
+    ],
+)
+def test_missing_or_non_string_query_is_rejected(payload):
+    _assert_validation_error(
+        client.post("/api/knowledge/retrieve", json=payload)
+    )
 
 
-# ============================================================
-# Test: Source Traceability
-# ============================================================
-
-def test_source_traceability_in_results():
-    """Test that results always include source information."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # Verify our normalization preserves the principle
-    # that source information is never lost
-    
-    queries = [
-        "property",
-        "सम्पत्ति",
-        "जग्गा dispute",
-    ]
-    
-    for q in queries:
-        normalized = _normalize_query(q)
-        assert isinstance(normalized, str)
-        assert len(normalized) > 0
+@pytest.mark.parametrize("bad", ["abc", None, 1.5, [1], {"a": 1}, True])
+def test_invalid_top_k_is_rejected(bad):
+    _assert_validation_error(
+        client.post("/api/knowledge/retrieve", json={"query": "x", "top_k": bad})
+    )
 
 
-def test_never_anonymous_legal_text():
-    """Test principle that results never return anonymous legal text."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # The retrieval service should always include source metadata
-    # This is enforced by the API schema and the retrieval logic
-    # where every result includes source_name and source_url
-    
-    # Verify the principle holds for all normalizations
-    test_queries = ["test", "sample query", "न्याय"]
-    for q in test_queries:
-        n = _normalize_query(q)
-        # Normalization should not strip source-relevant info
-        assert n == n  # NFC round-trip
+@pytest.mark.parametrize("bad", ["abc", None, [1], {"a": 1}, True])
+def test_invalid_minimum_score_is_rejected(bad):
+    _assert_validation_error(
+        client.post(
+            "/api/knowledge/retrieve", json={"query": "x", "minimum_score": bad}
+        )
+    )
 
 
-# ============================================================
-# Test: Verification Status
-# ============================================================
-
-def test_verification_status_visible():
-    """Test that verification status is visible in retrieval results."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # The retrieval service returns is_verified in each result
-    # This should always be a boolean
-    
-    test_cases = [True, False, None]
-    for case in test_cases:
-        # is_verified should be convertible to bool
-        if case is None:
-            result = False  # default
-        else:
-            result = bool(case)
-        assert isinstance(result, bool)
+@pytest.mark.parametrize("bad", ["bogus", "", "KEYWORD", "fulltext", 5, None])
+def test_invalid_search_type_is_rejected(bad):
+    _assert_validation_error(
+        client.post(
+            "/api/knowledge/retrieve", json={"query": "x", "search_type": bad}
+        )
+    )
 
 
-# ============================================================
-# Test: top-k Behavior
-# ============================================================
-
-def test_top_k_limit():
-    """Test that top_k limits the number of results returned."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # Query that matches many results
-    q = "property"
-    normalized = _normalize_query(q)
-    
-    # Normalized query should be deterministic
-    assert normalized == "property"
-    
-    # Test various top_k values
-    for top_k in [1, 3, 5, 10, 20]:
-        # top_k should be positive integer
-        assert isinstance(top_k, int)
-        assert top_k > 0
+@pytest.mark.parametrize("bad", [123, ["family"], {"k": "v"}])
+def test_invalid_domain_id_type_is_rejected(bad):
+    _assert_validation_error(
+        client.post("/api/knowledge/retrieve", json={"query": "x", "domain_id": bad})
+    )
 
 
-def test_minimum_score_filter():
-    """Test that minimum_score filters results appropriately."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # minimum_score should be in [0, 1]
-    for score in [0.0, 0.3, 0.5, 0.8, 1.0]:
-        assert 0.0 <= score <= 1.0
-    
-    # Invalid scores should be rejected
-    for score in [-0.1, 1.5]:
-        assert not (0.0 <= score <= 1.0)
+@pytest.mark.parametrize("bad", [123, ["t"], {"t": 1}])
+def test_invalid_document_title_type_is_rejected(bad):
+    _assert_validation_error(
+        client.post(
+            "/api/knowledge/retrieve", json={"query": "x", "document_title": bad}
+        )
+    )
 
 
-# ============================================================
-# Test: Malformed Input
-# ============================================================
-
-def test_malformed_query_type():
-    """Test that non-string queries are rejected."""
-    from fastapi import HTTPException
-    from fastapi.testclient import TestClient
-    
-    # The endpoint should reject non-string queries
-    # This is validated in the retrieve_legal_context function
-    
-    # Test the validation logic
-    def validate_query(query):
-        if not isinstance(query, str):
-            return False, "query must be a string"
-        return True, None
-    
-    # Valid string
-    ok, err = validate_query("property")
-    assert ok is True
-    assert err is None
-    
-    # Invalid types
-    ok, err = validate_query(123)
-    assert ok is False
-    assert err == "query must be a string"
-    
-    ok, err = validate_query(None)
-    assert ok is False
-    assert err == "query must be a string"
-    
-    ok, err = validate_query([])
-    assert ok is False
-    assert err == "query must be a string"
+@pytest.mark.parametrize("bad", ["yes", "true", 1, 0, None])
+def test_invalid_verified_only_is_rejected(bad):
+    _assert_validation_error(
+        client.post(
+            "/api/knowledge/retrieve", json={"query": "x", "verified_only": bad}
+        )
+    )
 
 
-# ============================================================
-# Test: Unicode NFC Round-trip
-# ============================================================
-
-def test_unicode_nfc_round_trip():
-    """Test that Unicode NFC normalization is idempotent."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # NFC normalization should be idempotent
-    # Normalizing twice should give same result as normalizing once
-    
-    test_strings = [
-        "मरो पैतृक सम्पत्तिमा अधिकार के हो?",
-        "property partition",
-        "जग्गा dispute",
-        "normalized nepali text",
-    ]
-    
-    for s in test_strings:
-        n1 = _normalize_query(s)
-        n2 = _normalize_query(n1)  # normalize again
-        assert n1 == n2, f"NFC not idempotent: {n1!r} != {n2!r} for {s!r}"
+def test_non_object_body_is_rejected():
+    assert client.post("/api/knowledge/retrieve", json=["a"]).status_code == 422
 
 
-# ============================================================
-# Test: Edge Cases
-# ============================================================
-
-def test_punctuation_handling():
-    """Test that punctuation is handled correctly in normalization."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # Punctuation should be preserved but not create duplicate spaces
-    result = _normalize_query("property's")
-    assert isinstance(result, str)
-    
-    result2 = _normalize_query("property- partition")
-    assert isinstance(result2, str)
-
-
-def test_case_insensitivity():
-    """Test that normalization handles case consistently."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # All cases should normalize to lowercase
-    tests = [
-        ("PROPERTY", "property"),
-        ("Property", "property"),
-        ("property", "property"),
-        ("PROPERTY PARTITION", "property partition"),
-    ]
-    
-    for input_q, expected in tests:
-        result = _normalize_query(input_q)
-        assert result == expected, f"Case normalization failed: {input_q!r} -> {result!r}, expected {expected!r}"
-
-
-def test_document_filter_with_uuids():
-    """Test document filtering with UUID strings."""
-    from app.services.knowledge_retrieval import _normalize_query
-    
-    # UUIDs should be handled properly
-    test_uuids = [
-        "11111111-1111-1111-1111-111111111111",
-        "22222222-2222-2222-2222-222222222222",
-    ]
-    
-    for uuid_str in test_uuids:
-        # UUID strings should not be affected by query normalization
-        # (they're not typical queries, but shouldn't crash)
-        result = _normalize_query(uuid_str)
-        assert isinstance(result, str)
-
-
-# Run all tests when this file is executed directly
-if __name__ == "__main__":
-    import sys
-    
-    # Run normalization tests
-    print("Running normalization tests...")
-    test_nepali_query_normalization()
-    test_english_query_normalization()
-    test_mixed_language_query_normalization()
-    test_whitespace_query()
-    test_empty_query()
-    print("  PASSED")
-    
-    # Run Unicode NFC round-trip
-    print("Running Unicode NFC round-trip tests...")
-    test_unicode_nfc_round_trip()
-    print("  PASSED")
-    
-    # Run case insensitivity
-    print("Running case insensitivity tests...")
-    test_case_insensitivity()
-    print("  PASSED")
-    
-    # Run punctuation handling
-    print("Running punctuation handling tests...")
-    test_punctuation_handling()
-    print("  PASSED")
-    
-    # Run malformed input
-    print("Running malformed input tests...")
-    test_malformed_query_type()
-    print("  PASSED")
-    
-    # Run verification status
-    print("Running verification status tests...")
-    test_verification_status_visible()
-    print("  PASSED")
-    
-    # Run top-k behavior
-    print("Running top-k behavior tests...")
-    test_top_k_limit()
-    test_minimum_score_filter()
-    print("  PASSED")
-    
-    # Run ranking determinism
-    print("Running ranking determinism tests...")
-    test_ranking_determinism()
-    test_ranking_with_different_queries()
-    print("  PASSED")
-    
-    # Run source traceability
-    print("Running source traceability tests...")
-    test_source_traceability_in_results()
-    test_never_anonymous_legal_text()
-    print("  PASSED")
-    
-    # Run document filter
-    print("Running document filter tests...")
-    test_document_filter_with_uuids()
-    print("  PASSED")
-    
-    print("\n=== ALL TESTS PASSED ===")
+def test_validation_failures_never_reach_the_service():
+    with patch(SERVICE, return_value=_ok_result()) as mocked:
+        client.post("/api/knowledge/retrieve", json={})
+        client.post("/api/knowledge/retrieve", json={"query": "x", "top_k": "abc"})
+        client.post("/api/knowledge/retrieve", json={"query": "x", "search_type": "no"})
+    assert mocked.call_count == 0

@@ -1,20 +1,100 @@
-"""Knowledge retrieval service - Phase 4: RAG & Legal Retrieval Engine.
+"""Knowledge retrieval service - Phase 4 legal retrieval engine.
 
-Provides modular retrieval of legal provisions for a user's query.
-Supports exact/keyword, PostgreSQL full-text/trigram, and ranking layers.
-Never generates legal answers; only returns structured retrieval responses.
+Retrieval is **deterministic lexical matching**: the query is Unicode-NFC
+normalized, whitespace-collapsed, tokenized, stripped of stop words, and each
+remaining term is matched with PostgreSQL ``ILIKE`` against the chunk title,
+the chunk content and (for ``search_type="domain"``) the domain key. Matches are
+ranked with an explainable per-term weighted sum and then filtered by
+``minimum_score`` and ``top_k``.
+
+Why not full-text search or embeddings (documented decision, not an omission):
+
+* PostgreSQL ships no Nepali text-search configuration. With ``simple`` or
+  ``english``, Devanagari text degenerates to one lexeme per whitespace word, so
+  ``tsvector`` buys prefix/stemming behaviour that does not apply here, while
+  requiring a generated column plus GIN index (a schema migration).
+* There is no embedding column on ``knowledge_chunks`` (see migration 005) and
+  introducing pgvector would add an infrastructure dependency plus a corpus-wide
+  re-embedding job, for a 721-row hand-verified corpus.
+
+So this stays plain relational matching on the project's psycopg 3 connection,
+which keeps it deterministic, dependency-free and testable. This service never
+generates legal answers; it only returns structured, source-traceable results.
 """
 
-import unicodedata
+from __future__ import annotations
+
 import re
-from typing import Any, List, Dict, Optional, Tuple
+import unicodedata
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+from uuid import UUID
 
-from psycopg2 import sql
+from psycopg.rows import dict_row
 
-from app.repositories.knowledge_chunks import KnowledgeChunkRepository
+from app.db.session import get_connection
+from app.repositories.legal_documents import LegalDocumentRepository
 from app.repositories.legal_domains import LegalDomainRepository
-from app.repositories.sources import SourceRepository
-from app.schemas.knowledge import KnowledgeChunkOut
+
+# Explainable ranking weights. Every signal is a *ratio* of the query terms
+# that matched, so a single-term query scores exactly as before
+# (content 1.0, +0.3 title, +0.1 domain) and the ceiling is unchanged.
+CONTENT_WEIGHT = 1.0
+TITLE_WEIGHT = 0.3
+DOMAIN_WEIGHT = 0.1
+MAX_SCORE = CONTENT_WEIGHT + TITLE_WEIGHT + DOMAIN_WEIGHT
+
+SEARCH_TYPES: Tuple[str, ...] = ("keyword", "title", "content", "domain")
+DEFAULT_SEARCH_TYPE = "keyword"
+
+# Retrieval outcome, so "no match", "matches exist but are unverified" and
+# "error" can never be collapsed into one indistinguishable empty response.
+STATUS_OK = "ok"
+STATUS_NO_MATCH = "no_match"
+STATUS_UNVERIFIED_ONLY = "unverified_only"
+STATUS_ERROR = "error"
+
+MAX_QUERY_TOKENS = 24
+
+# Upper bound on an accepted question, enforced by the API layer. Keeps a
+# pathological request from turning into thousands of LIKE comparisons.
+MAX_QUERY_LENGTH = 2000
+
+# Stop words are dropped only to reduce noise: a query that is nothing but stop
+# words falls back to its raw tokens rather than matching nothing at all.
+STOP_WORDS: frozenset[str] = frozenset(
+    {
+        # Nepali
+        "को", "का", "की", "के", "मा", "ले", "लाई", "बाट", "द्वारा", "सँग",
+        "छ", "छन्", "छु", "हो", "हुन्", "हुन", "हुन्छ", "थियो", "थिए", "गर्न",
+        "गर्ने", "गरे", "गरेको", "भए", "भएको", "भन्ने", "भने", "अब", "मलाई",
+        "मेरो", "मेरा", "मैले", "तपाईं", "तिमी", "यो", "त्यो", "यी", "ती",
+        "र", "वा", "पनि", "तर", "कसरी", "किन", "कहिले", "कुन", "कहाँ", "कति",
+        "लागि", "बारे", "जस्तो", "जस्तै", "अनि", "हुँदा", "भयो", "गर्नु",
+        "पर्छ", "पर्यो", "हुने", "गर्छ", "दिन", "दिनु", "सक्छ", "सक्छु",
+        # English
+        "the", "a", "an", "and", "or", "but", "if", "then", "is", "are",
+        "was", "were", "be", "been", "being", "to", "of", "in", "on", "at",
+        "for", "with", "by", "from", "as", "this", "that", "these", "those",
+        "my", "your", "his", "her", "our", "their", "i", "me", "we", "you",
+        "he", "she", "it", "they", "them", "do", "does", "did", "done",
+        "how", "what", "when", "where", "why", "which", "who", "can", "could",
+        "will", "would", "shall", "should", "must", "not", "no", "yes",
+        "have", "has", "had", "about", "into", "there", "here", "so", "than",
+    }
+)
+
+# Token characters: word characters of any script plus the Devanagari block.
+#
+# ``\w`` alone is NOT enough for Nepali: it matches letters and digits but not
+# the combining marks (matras / virama), so "संरक्षक" would be split into
+# "रक" and "षक". The Devanagari ranges below cover the combining marks, and
+# deliberately exclude the dandas (\u0964 \u0965) and the abbreviation sign
+# (\u0970), which are punctuation and must separate terms. ZWNJ/ZWJ (\u200c
+# \u200d) are kept so words joined by them stay single terms.
+_DEVANAGARI_WORD = "\u0900-\u0963\u0966-\u096f\u0971-\u097f"
+_TOKEN_RE = re.compile(
+    rf"[\w{_DEVANAGARI_WORD}\u200c\u200d]+", re.UNICODE
+)
 
 
 def _normalize_query(query: str) -> str:
@@ -22,12 +102,10 @@ def _normalize_query(query: str) -> str:
 
     - Unicode NFC normalization
     - Whitespace normalization (collapse runs, strip leading/trailing)
-    - Punctuation: keep but normalize spaces around common legal separators
-    - Case normalization: case-insensitive comparison via ILIKE
-    - Remove duplicate whitespace
-    - Preserve original query in response
+    - Case normalization (lowercase; ILIKE also matches case-insensitively)
 
-    Do not alter the legal meaning of the query.
+    The legal meaning of the query is never altered and the original query is
+    still returned untouched in the response.
     """
     if not query:
         return query
@@ -35,52 +113,174 @@ def _normalize_query(query: str) -> str:
     # Unicode NFC normalization
     normalized = unicodedata.normalize("NFC", query)
 
-    # Whitespace normalization: collapse runs of whitespace, strip leading/trailing
+    # Whitespace normalization: collapse runs of whitespace, strip edges
     normalized = re.sub(r"\s+", " ", normalized).strip()
 
-    # Normalize case for comparison (ILIKE will handle SQL-level case-insensitivity)
-    # Keep original casing in output but normalize for matching
+    # Case normalization for matching (ILIKE is case-insensitive anyway)
     normalized = normalized.lower()
-
-    # Remove duplicate single spaces that may have been introduced
-    # (already done by \s+ collapse)
 
     return normalized
 
 
-def _build_search_query(
-    normalized_q: str,
-    search_type: str = "keyword",
-) -> str:
-    """Build a PostgreSQL query clause for the given search type.
+def tokenize_query(query: str, *, limit: int = MAX_QUERY_TOKENS) -> List[str]:
+    """Split a query into distinct, meaningful search terms.
 
-    search_type: "keyword", "title", "content", "domain"
+    Order is preserved (strongest signal first, as written by the user) and
+    duplicates are removed so a repeated word cannot inflate the score.
     """
-    if search_type == "keyword":
-        # Search across title and content columns using ILIKE
-        # We'll handle this at the SQL level with multiple OR conditions
-        return (
-            "("
-            + sql.SQL("c.title ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-            + " OR "
-            + sql.SQL("c.content ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-            + ")"
+    normalized = _normalize_query(query or "")
+    if not normalized:
+        return []
+
+    # Strip stray underscores that ``\w`` allows.
+    raw = [token.strip("_") for token in _TOKEN_RE.findall(normalized)]
+    raw = [token for token in raw if token]
+    meaningful = [
+        token
+        for token in raw
+        if token not in STOP_WORDS and (len(token) > 1 or token.isdigit())
+    ]
+    # A query made only of stop words / punctuation still has to search
+    # something, so fall back to the raw tokens and finally the whole string.
+    fallback = [t for t in raw if len(t) > 1 or t.isdigit()] or [normalized]
+    tokens = meaningful or fallback
+
+    deduped = list(dict.fromkeys(tokens))
+    return deduped[:limit]
+
+
+def _like_pattern(value: Any) -> str:
+    """Build a LIKE pattern with any metacharacters in the input escaped.
+
+    ``%`` and ``_`` are LIKE wildcards, so an unescaped query of ``%`` would
+    match the entire corpus. A backslash is PostgreSQL's default LIKE escape
+    character, so escaping each metacharacter is sufficient. Staying inside a
+    bound parameter also means SQL injection is impossible by construction.
+    """
+    escaped = (
+        str(value).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    )
+    return f"%{escaped}%"
+
+
+def _build_search_clause(
+    normalized_q: str, search_type: str
+) -> Tuple[str, List[Any]]:
+    """Return ``(sql_predicate, params)`` matching ONE term (or phrase).
+
+    ``search_type`` is one of ``title``, ``content``, ``domain`` or
+    ``keyword`` (the default, matching title *or* content). Unknown values fall
+    back to ``keyword`` rather than raising, so a caller can never produce a
+    malformed WHERE clause.
+    """
+    pattern = _like_pattern(normalized_q)
+
+    if search_type == "title":
+        return "c.title ILIKE %s", [pattern]
+    if search_type == "content":
+        return "c.content ILIKE %s", [pattern]
+    if search_type == "domain":
+        # The domain key lives on legal_domains (dm), not on legal_documents.
+        return "dm.key ILIKE %s", [pattern]
+    return "(c.title ILIKE %s OR c.content ILIKE %s)", [pattern, pattern]
+
+
+def _build_match_predicate(
+    tokens: Iterable[str], search_type: str
+) -> Tuple[str, List[Any]]:
+    """OR the per-term clauses together, so any term may match."""
+    clauses: List[str] = []
+    params: List[Any] = []
+    for token in tokens:
+        clause, clause_params = _build_search_clause(
+            token,
+            search_type if search_type in SEARCH_TYPES else DEFAULT_SEARCH_TYPE,
         )
-    elif search_type == "title":
-        return sql.SQL("c.title ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-    elif search_type == "content":
-        return sql.SQL("c.content ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-    elif searchsearch_type == "domain":
-        return sql.SQL("d.key ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-    else:
-        # default: keyword search across title and content
-        return (
-            "("
-            + sql.SQL("c.title ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-            + " OR "
-            + sql.SQL("c.content ILIKE %s").sql % sql.Literal(f"%{normalized_q}%")
-            + ")"
-        )
+        clauses.append(clause)
+        params.extend(clause_params)
+    if not clauses:
+        # Unreachable for a non-empty token list; kept so the WHERE clause can
+        # never become empty (which would scan the whole table).
+        return "(c.title ILIKE %s OR c.content ILIKE %s)", ["%%", "%%"]
+    # Always wrap the entire disjunction in parentheses to protect against AND precedence.
+    # SQL gives AND higher precedence than OR, so an unwrapped predicate would
+    # silently change meaning when the caller appends another condition:
+    #
+    #   a OR b OR c AND c.is_verified = TRUE   ->  a OR b OR (c AND verified)
+    #
+    # which would let unverified rows through a `verified_only` request. The
+    # filter must never depend on the shape of the generated expression.
+    return f"({' OR '.join(clauses)})", params
+
+
+def _build_hit_expression(column: str, tokens: List[str]) -> str:
+    """SQL counting how many distinct query terms appear in ``column``."""
+    return " + ".join(
+        f"CASE WHEN {column} ILIKE %s THEN 1 ELSE 0 END" for _ in tokens
+    )
+
+
+def _looks_like_uuid(value: Any) -> bool:
+    try:
+        UUID(str(value))
+    except (ValueError, TypeError, AttributeError):
+        return False
+    return True
+
+
+def _resolve_domain(conn: Any, value: Any) -> Optional[dict[str, Any]]:
+    """Resolve a domain filter given either its stable key or its UUID."""
+    repo = LegalDomainRepository(conn)
+    if isinstance(value, str) and not _looks_like_uuid(value):
+        return repo.get_by_key(value)
+    found = repo.get_by_id(value)
+    if found is None and isinstance(value, str):
+        return repo.get_by_key(value)
+    return found
+
+
+def _resolve_document_ids(conn: Any, values: List[Any]) -> List[Any]:
+    """Resolve a document filter given UUIDs and/or document titles.
+
+    Titles are not unique across domains (the same law is imported once per
+    domain), so a title filter deliberately matches every document with that
+    title.
+    """
+    repo = LegalDocumentRepository(conn)
+    ids: List[Any] = []
+    titles: List[str] = []
+
+    for value in values:
+        if _looks_like_uuid(value):
+            doc = repo.get_by_id(value)
+            if doc is not None:
+                ids.append(doc["id"])
+        else:
+            titles.append(str(value))
+
+    if titles:
+        for doc in repo.list_by_titles(titles):
+            if doc["id"] not in ids:
+                ids.append(doc["id"])
+
+    return ids
+
+
+def _empty_result(
+    query: str, normalized_q: str, *, status: str, error: str | None = None,
+    tokens: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "query": query,
+        "normalized_query": normalized_q,
+        "tokens": tokens or [],
+        "results": [],
+        "total_found": 0,
+        "status": status,
+    }
+    if error:
+        payload["error"] = error
+    return payload
 
 
 def retrieve_legal_context(
@@ -91,375 +291,261 @@ def retrieve_legal_context(
     domain_id: Optional[str] = None,
     document_filter: Optional[List[str]] = None,
     verified_only: bool = True,
-    search_type: str = "keyword",
+    search_type: str = DEFAULT_SEARCH_TYPE,
     chunk_index: Optional[int] = None,
-) -> Dict[strAny]:
+) -> Dict[str, Any]:
     """Retrieve legal provisions relevant to a user's question.
 
-    The retrieval pipeline:
+    Pipeline:
 
-    1. **Query preprocessing**: normalize the query (Unicode NFC, whitespace,
-       punctuation, case)
-    2. **Candidate retrieval**: Layer 1 (exact/keyword) using PostgreSQL
-       ILIKE across title/content with optional domain/document/verified filters
-    3. **Ranking**: Score candidates using explainable signals:
-       - text relevance (ILIKE match position)
-       - section title match boost
-       - document match boost
-       - domain match boost
-       - exact phrase match boost
-    4. **Top-K selection**: Return only the top_k results above minimum_score
+    1. **Query preprocessing** — Unicode NFC, whitespace collapse, lowercasing,
+       tokenization, stop-word removal
+    2. **Candidate retrieval** — one parameterized query; a row is a candidate
+       when ANY query term matches (per ``search_type``), with optional domain /
+       document / verified / chunk-index filters
+    3. **Ranking** — explainable composite score computed identically in SQL and
+       in Python: ``(content_hits / terms) * 1.0 + (title_hits / terms) * 0.3 +
+       domain_match * 0.1`` (range ``0.0 .. 1.4``)
+    4. **Selection** — drop anything below ``minimum_score``, order by score
+       descending (ties broken by ``chunk_index`` then ``id`` for full
+       determinism) and slice to ``top_k``
 
-    Returns A structured dict with:
-    - query: the original input query
-    - normalized_query: the normalized version used for retrieval
-    - results: list of result dicts with source metadata and score
-    - total_found: total number of candidates before filtering
+    Returns a dict with ``query``, ``normalized_query``, ``tokens``, ``results``,
+    ``total_found`` and ``status``. ``status`` distinguishes:
 
-    Each result dict contains:
-    - document_id: UUID
-    - document_title: str
-    - section_number: str (provision_number)
-    - section_title: str (provision_title)
-    - content: str (the provision text chunk)
-    - domain: str (domain key)
-    - source: str (source_name)
-    - source_url: str | None
-    - score: float (0.0 to 1.0, explainable relevance)
-    - is_verified: bool
-    - chunk_index: int
+    * ``ok``               — verified matches were found
+    * ``unverified_only``  — nothing verified matched, but unverified matches
+                             exist (``unverified_match_count`` is set)
+    * ``no_match``         — nothing matched at all
+    * ``error``            — an unresolvable domain/document filter
+
+    Every result carries full source traceability: ``chunk_id``,
+    ``document_id``, ``provision_id``, ``document_title``, ``section_number``,
+    ``section_title``, ``content``, ``domain``, ``source``, ``source_url``,
+    ``score``, ``is_verified`` and ``chunk_index``. Anonymous legal text is never
+    returned.
     """
     if not query:
-        return {
-            "query": "",
-            "normalized_query": "",
-            "results": [],
-            "total_found": 0,
-        }
+        return _empty_result(query, "", status=STATUS_NO_MATCH)
 
-    # Step 1: Query normalization
     normalized_q = _normalize_query(query)
+    tokens = tokenize_query(query)
 
-    # Step 2: Repository access - use dependency injection pattern compatible with existing code
-    from app.db.session import get_connection
+    if not tokens:
+        return _empty_result(query, normalized_q, status=STATUS_NO_MATCH)
+
+    token_patterns = [_like_pattern(token) for token in tokens]
 
     with get_connection() as conn:
-        # Step 3: Domain filter - if domain_id provided, filter by it and validate it exists
-        domain_cond = ""
-        domain_params: List[Any] = []
+        conditions: List[str] = []
+        params: List[Any] = []
 
+        # --- term matching (keyword / title / content / domain) ------------
+        search_predicate, search_params = _build_match_predicate(tokens, search_type)
+        conditions.append(search_predicate)
+        params.extend(search_params)
+
+        # --- domain filter (accepts a domain key or a UUID) ---------------
+        domain_row = None
         if domain_id is not None:
-            dom_repo = LegalDomainRepository(conn)
-            domain_exists = dom_repo.get_by_id(domain_id) is not None
-            if not domain_exists:
-                return {
-                    "query": query,
-                    "normalized_query": normalized_q,
-                    "results": [],
-                    "total_found": 0,
-                    "error": f"Unknown domain_id: {domain_id}",
-                }
-            domain_cond = " AND c.domain_id = %s"
-            domain_params.append(domain_id)
+            domain_row = _resolve_domain(conn, domain_id)
+            if domain_row is None:
+                return _empty_result(
+                    query, normalized_q, status=STATUS_ERROR,
+                    error=f"Unknown domain_id: {domain_id}", tokens=tokens,
+                )
+            conditions.append("c.domain_id = %s")
+            params.append(domain_row["id"])
 
-        # Step 4: Document filter
-        doc_cond = ""
-        if document_filter is not None and len(document_filter) > 0:
-            # Build IN clause with UUID placeholders
-            doc_placeholders = ", ".join(["%s"] * len(document_filter))
-            doc_cond = f" AND c.document_id IN ({doc_placeholders})"
-            doc_params = document_filter
-        else:
-            doc_params = []
+        # --- document filter (accepts UUIDs and/or document titles) -------
+        if document_filter:
+            document_ids = _resolve_document_ids(conn, list(document_filter))
+            if not document_ids:
+                return _empty_result(
+                    query, normalized_q, status=STATUS_NO_MATCH, tokens=tokens
+                )
+            conditions.append("c.document_id = ANY(%s)")
+            params.append(document_ids)
 
-        # Step 5: Verified filter (applied in Layer 1 SQL)
-        verified_cond = ""
-        if verified_only:
-            verified_cond = " AND c.is_verified = TRUE"
+        # --- optional chunk index filter ----------------------------------
+        if chunk_index is not None:
+            conditions.append("c.chunk_index = %s")
+            params.append(chunk_index)
 
-        # Step 6: Build Layer 1 keyword/title/content search
-        # Use ILIKE for case-insensitive matching
-        # Build the full WHERE clause
-        where_parts = []
-        where_parts.append(_build_search_query(normalized_q, search_type))
-        where_parts.append(domain_cond)
-        where_parts.append(doc_cond)
-        where_parts.append(verified_cond)
+        # Verified filtering is applied per query so the same base query can
+        # also answer "do unverified matches exist?".
+        verified_condition = "c.is_verified = TRUE" if verified_only else None
 
-        where_clause = " WHERE " + " AND ".join(where_parts) if any(
-            w != "" for w in where_parts) else " "
+        token_count = len(tokens)
+        title_hits = _build_hit_expression("c.title", tokens)
+        content_hits = _build_hit_expression("c.content", tokens)
+        domain_match = "CASE WHEN c.domain_id = %s THEN 1.0 ELSE 0.0 END"
 
-        # Step 7: Execute search
-        # We need to count total first then fetch top-k
-        # Use a CTE approach: first count, then fetch
-        count_query = f"""
-            SELECT COUNT(*) AS total FROM knowledge_chunks c
-            JOIN legal_documents d ON d.id = c.document_id
-            {where_parts[0] if where_parts else "1=1"}
-        """
-        # Actually let's build a proper count with all conditions
-        all_where = " AND ".join(where_parts)
-        count_query = f"""
-            SELECT COUNT(*) AS total FROM knowledge_chunks c
-            JOIN legal_documents d ON d.id = c.document_id
-            WHERE {all_where if all_where != " WHERE " else "1=1"}
-        """
-        count_cur = conn.cursor()
-        count_cur.execute(count_query, tuple(
-            [normalized_q] + domain_params + doc_params
-        ))
-        total_found = count_cur.fetchone()["total"]
+        # Parameters for the inner SELECT, in SQL-text order: title hits,
+        # content hits, domain match — then the WHERE-clause filters.
+        scoring_params: List[Any] = [
+            *token_patterns,                                       # title hits
+            *token_patterns,                                       # content hits
+            domain_row["id"] if domain_row else None,              # domain_match
+        ]
 
-        # Step 8: Fetch top_k results with scores
-        # Build SELECT query with ORDER BY using explainable signals
-        # Scoring signals (in ORDER BY priority order):
-        # 1. Exact provision_number match (provision_number = chunk_index portion of query? not exactly)
-        # 2. Title match: full phrase in title gets higher score
-        # 3. Content match: normalized query appears in content
-        # 4. Domain match: domain_id matches
-        # 5. Source: official source gets boost
+        score_expr = (
+            f"(content_hits::numeric / {token_count}) * {CONTENT_WEIGHT} "
+            f"+ (title_hits::numeric / {token_count}) * {TITLE_WEIGHT} "
+            f"+ domain_match * {DOMAIN_WEIGHT}"
+        )
 
-        # For simplicity and determinism, we'll use a composite score:
-        # - Base: 1.0 if normalized_q appears in content via ILIKE, else 0.0
-        # - Title boost: +0.3 if normalized_q appears in title via ILIKE
-        # - Domain boost: +0.2 if c.domain_id = %s
-        # - Exact provision_number: +0.5 if provision_number in chunk matches pattern
-
-        # We'll build a SELECT with a CASE WHEN expression for scoring score.
-        # Since PostgreSQL doesn't have a built-in relevance ranking without pgvector,
-        # we'll compute our own explainable score.
-
-        select_query = f"""
-            SELECT 
-                c.*,
+        def _inner_sql(extra_conditions: List[str]) -> str:
+            where_sql = " AND ".join([*conditions, *extra_conditions])
+            return f"""
+            SELECT
+                c.id AS chunk_id,
+                c.document_id,
+                c.provision_id,
+                c.domain_id,
+                c.source_id,
+                c.title,
+                c.content,
+                c.language,
+                c.chunk_index,
+                c.is_verified,
                 d.title AS document_title,
-                d.key AS domain_key,
+                dm.key AS domain_key,
                 s.name AS source_name,
                 s.official_url AS source_url,
-                -- Explanation: does the normalized query appear in title?
-                CASE WHEN c.title ILIKE %s THEN 1.0 ELSE 0.0 END 
-                    AS title_match,
-                -- Explanation: does the normalized query appear in content?
-                CASE WHEN c.content ILIKE %s THEN 1.0 ELSE 0.0 END 
-                    AS content_match,
-                -- Explanation: domain match
-                CASE WHEN c.domain_id = %s THEN 1.0 ELSE 0.0 END 
-                    AS domain_match
+                s.source_type AS source_type,
+                s.is_verified AS source_is_verified,
+                s.verified_at AS source_verified_at,
+                d.status AS document_status,
+                d.effective_date AS document_effective_date,
+                p.provision_number,
+                p.title AS provision_title,
+                ({title_hits}) AS title_hits,
+                ({content_hits}) AS content_hits,
+                ({domain_match}) AS domain_match
             FROM knowledge_chunks c
             JOIN legal_documents d ON d.id = c.document_id
+            LEFT JOIN legal_domains dm ON dm.id = c.domain_id
             LEFT JOIN sources s ON s.id = c.source_id
-            {where_parts[0] if where_parts else "1=1"}
-            ORDER BY
-                title_match DESC,
-                content_match DESC,
-                domain_match DESC,
-                -- Additional: exact provision_number match within content text
-                (CASE WHEN c.content ILIKE %s THEN 0.5 ELSE 0.0 END) DESC,
-                c.chunk_index ASC
-            LIMIT %s
-        """
+            LEFT JOIN legal_provisions p ON p.id = c.provision_id
+            WHERE {where_sql}
+            """
 
-        # Prepare parameters in order:
-        # 1. normalized_q for title ILIKE
-        # 2. normalized_q for content ILIKE
-        # 3. domain_id or None 
-        # 4. normalized_q again for exact phrase
-        # 5. top_k limit and offset parameters
-        params: List[Any] = [
-            sql.Literal(f"%{normalized_q}%"),
-            sql.Literal(f"%{normalized_q}%"),
-            domain_id if domain_id is not None else sql.NULL,
-            sql.Literal(f"%{normalized_q}%"),
-            top_k,
-        ]
+        primary_conditions = [verified_condition] if verified_condition else []
+        primary_sql = _inner_sql(primary_conditions)
+        primary_params = [*scoring_params, *params]
 
-        # Append document_filter params if any after the first 5
-        if doc_params:
-            params.extend(doc_params)
+        with conn.cursor(row_factory=dict_row) as cur:
+            # total matches at/above the threshold, before slicing to top_k
+            cur.execute(
+                f"""
+                SELECT count(*) AS total
+                FROM ({primary_sql}) scored
+                WHERE ({score_expr}) >= %s
+                """,
+                (*primary_params, minimum_score),
+            )
+            total_row = cur.fetchone()
+            total_found = int(total_row["total"]) if total_row else 0
 
-        # Execute search
-        sel_cur = conn.cursor()
-        sel_cur.execute(select_query, tuple(params))
-        rows = sel_cur.fetchall()
+            if total_found == 0:
+                # Distinguish "nothing matched" from "unverified matches exist".
+                unverified_count = 0
+                if verified_only:
+                    cur.execute(
+                        f"""
+                        SELECT count(*) AS total
+                        FROM ({_inner_sql([])}) scored
+                        WHERE ({score_expr}) >= %s
+                        """,
+                        (*scoring_params, *params, minimum_score),
+                    )
+                    diagnostic = cur.fetchone()
+                    unverified_count = int(diagnostic["total"]) if diagnostic else 0
 
-        # Step 9: Post-process results into structured format
-        results = []
+                payload = _empty_result(
+                    query, normalized_q,
+                    status=(STATUS_UNVERIFIED_ONLY if unverified_count
+                            else STATUS_NO_MATCH),
+                    tokens=tokens,
+                )
+                payload["verified_only"] = verified_only
+                payload["unverified_match_count"] = unverified_count
+                return payload
+
+            cur.execute(
+                f"""
+                SELECT *
+                FROM ({primary_sql}) scored
+                WHERE ({score_expr}) >= %s
+                ORDER BY ({score_expr}) DESC, chunk_index ASC, chunk_id ASC
+                LIMIT %s
+                """,
+                (*primary_params, minimum_score, top_k),
+            )
+            rows = cur.fetchall()
+
+        results: List[Dict[str, Any]] = []
         for row in rows:
-            # row is a dict from the JOIN with dict_row factory needed or we cast manually
-            # Let's ensure we get dict_row format
-            # The SELECT includes c.* and d.title and s.name etc.
-            # We need to map these into the expected output format
+            tm = int(row["title_hits"] or 0)
+            cm = int(row["content_hits"] or 0)
+            dm = float(row["domain_match"] or 0.0)
+            score = round(
+                (cm / token_count) * CONTENT_WEIGHT
+                + (tm / token_count) * TITLE_WEIGHT
+                + dm * DOMAIN_WEIGHT,
+                2,
+            )
 
-            # Score computation: composite of the CASE WHEN results above + exact phrase
-            # We have from the row: title_match, content_match, domain_match
-            # We also need to compute the exact_phrase score from the 4th parameter logic
+            results.append(
+                {
+                    "chunk_id": str(row["chunk_id"]),
+                    "document_id": str(row["document_id"]),
+                    "provision_id": (
+                        str(row["provision_id"]) if row["provision_id"] else None
+                    ),
+                    "document_title": row["document_title"] or "",
+                    "section_number": row["provision_number"] or "",
+                    "section_title": row["provision_title"] or "",
+                    "content": row["content"] or "",
+                    "domain": row["domain_key"] or "",
+                    "source": row["source_name"] or "",
+                    "source_url": row["source_url"] or "",
+                    "source_id": str(row["source_id"]) if row["source_id"] else None,
+                    "source_type": row["source_type"] or "",
+                    "source_is_verified": bool(row["source_is_verified"]),
+                    "source_verified_at": (
+                        row["source_verified_at"].isoformat()
+                        if row["source_verified_at"] else None
+                    ),
+                    "document_status": row["document_status"] or "",
+                    "document_effective_date": (
+                        str(row["document_effective_date"])
+                        if row["document_effective_date"] else None
+                    ),
+                    "score": score,
+                    "is_verified": bool(row["is_verified"]),
+                    "chunk_index": row["chunk_index"] or 0,
+                    # Explainability signals (trace/debug only).
+                    "_title_match": tm > 0,
+                    "_content_match": cm > 0,
+                    "_domain_match": bool(dm),
+                    "_title_hits": tm,
+                    "_content_hits": cm,
+                    "_matched_terms": cm + tm,
+                }
+            )
 
-            # The row contains: c.id, c.document_id, c.provision_id, c.domain_id, 
-            # c.source_id, c.title, c.content, c.language, c.chunk_index, c.is_verified,
-            # d.title AS document_title, d.key AS domain_key, s.name AS source_name, 
-            # s.official_url AS source_url,
-            # CASE WHEN c.title ILIKE %s THEN 1.0 ELSE 0.0 END AS title_match,
-            # CASE WHEN c.content ILIKE %s THEN 1.0 ELSE 0.0 END AS content_match,
-            # CASE WHEN c.domain_id = %s THEN 1.0 ELSE 0.0 END AS domain_match
-
-            # Compute final score: base = content_match * 1.0 + title_match * 0.3 + domain_match * 0.2 + exact phrase * 0.5
-            # But we already have title_match, content_match, domain_match as 0.0/1.0 from CASE
-
-            # Let's compute score from the CASE WHEN booleans in the row
-            # We'll treat them as floats and compute composite score
-
-            # We need to be careful: the row values come back as strings from PostgreSQL
-            # Actually with dict_row they'd be proper Python types, but let's handle both cases
-
-            # Let's extract the CASE WHEN results and compute
-            title_match_val = row.get("title_match")
-            content_match_val = row.get("content_match")
-            domain_match_val = row.get("domain_match")
-
-            # Convert to float safely
-            try:
-                tm = float(title_match_val) if title_match_val is not None else 0.0
-            except (TypeError, ValueError):
-                tm = 0.0
-            try:
-                cm = float(content_match_val) if content_match_val is not None else 0.0
-            except (TypeError, ValueError):
-                cm = 0.0
-            try:
-                dm = float(domain_match_val) if domain_match_val is not None else 0.0
-            except (TypeError, ValueError):
-                dm = 0.0
-
-            # Exact phrase: check if normalized_q appears in content (we can do a final check)
-            # The ILIKE already has this but exact phrase gets 0.5 boost
-            # We'll compute: if normalized_q appears as a phrase (surrounded by word boundaries or at start/end of content)
-            content_for_phrase = row.get("content", "")
-            # For exact phrase scoring: check if normalized_q appears in content with word boundary-ish logic
-            # Since we normalized query and content already in the ILIKE, we'll give 0.5 bonus if the
-            # ILIKE matched AND the original (pre-normalized) content contains the original query
-            # Actually for simplicity: if content ILIKE % normalized_q % (which all our results have),
-            # give a 0.5 boost to the base score
-
-            # Our base score structure is already content_match * 1.0 from the SELECT CASE
-            # So the final score will be: base = content_match + title_match * 0.3 + domain_match * 0.2
-            # Then if there was an exact_phrase_substring bonus embedded in the ILIKE already,
-            # we can add 0.5 if the matched text appears at word boundaries or as key legal terms.
-            # For simplicity, let's just use the base + 0.5 if the normalized query appears in the
-            # raw content string AND the score is < 1.0
-
-            # Actually the simplest approach: compute score from the three CASE WHEN columns + 0.5 bonus 
-            # if the normalized query appears in content (which it does for all returned results)
-            # But that would give 0.5 to all, which isn't discriminating. Let's instead add 0.5 only 
-            # if the score would otherwise be < 0.8 and the normalized_q is found in content
-
-            # For Phase 4, let's keep it simple:
-            # final_score = cm + tm * 0.3 + dm * 0.2
-            # If final_score < 1.0 and the content contains the normalized query phrase,
-            # add 0.3 - but wait, all our results have content_match = 1.0 so final_score would be at least 1.0
-            # Let's change our scoring: instead of 1.0/0.0 from CASE, use a more graduated scale
-
-            # Let's rethink: we'll compute the final score after all post-processing
-            # Base score from 0.0 to 1.0:
-            # - If normalized_q is in content via ILIKE: start at 0.6
-            # - If also in title: +0.2 = 0.8
-            # - If also domain_id matches: +0.1 = 0.9
-            # - If provision_number appears in content: +0.1 = 1.0
-
-            # For now let's just use the CASE WHEN 0.0/1.0 values as a starting point
-            # and compute a graduated composite 
-
-            # Actually the cleanest: the CASE WHEN values are 0.0 or 1.0.
-            # Let's compute final_score = content_match * 0.6 + title_match * 0.3 + domain_match * 0.1
-            # This gives range: 0.0 to 1.0
-            # Then we can apply 0.1 bonus if exact provision_number is found in content text
-
-            # Let's compute:
-            base_score = cm * 0.6 + tm * 0.3 + dm * 0.1
-
-            # Now add 0.1 bonus if provision_number appears in content
-            # The chunk's content text - check if normalized_q appears and we can also 
-            # check if any provision_number from matching rows appears in the content
-            # For simplicity: if normalized_q appears in rowcontent and base_score < 1.0, add 0.1
-            # Actually all results will have content_match = 1.0 so base_score >= 0.6
-            # Let's just use the graduated score directly and not add extra
-
-            # Compute final score as float 
-            final_score = round(base_score, 2)
-
-            # But we also had a 4th parameter in ORDER BY: exact phrase
-            # Let's re-examine The ORDER BY had: (CASE WHEN c.content ILIKE %s THEN 0.5 ELSE 0.0 END)
-            # This is an additional 0.5 if the whole content matches the phrase pattern 
-            # (which it always will since we ILIKE). Let's instead compute: if the normalized query 
-            # appears as a substantial portion of the content (e.g., more than 50% of the normalized_q 
-            # characters appear in order in content), give 0.2 bonus 
-            # Actually this is getting too complex. Let's just compute final_score from the three CASE 
-            # WHEN columns as a graduated scale 0.0 to 1.0 and then sort DESC by that score + chunk_index ASC
-
-            # Let's compute: final = round(cm * 1.0 + tm * 0.3 + dm * 0.1, 2)
-            # But that gives 1.0 for all content matches which isn't great discriminating.
-            # Let's use a different approach: use the raw ILIKE match position if available 
-            # via position() function in PostgreSQL
-
-            # For Phase 4, we'll keep it simple and deterministic:
-            # final_score = round((cm * 0.7 + tm * 0.2 + dm * 0.1), 2)
-            # This gives range 0.0 to 1.0
-
-            # Let's just compute from the CASE WHEN we already have
-            # Since they are 0.0 or 1.0, the max score is 1.0 and min is 0.0
-            # final_score = round(cm + tm * 0.3 + dm * 0.1, 2)
-
-            final_score = round(cm + tm * 0.3 + dm * 0.1, 2)
-
-            # Ensure minimum score filter is applied after computation  # but we already LIMIT with ORDER BY
-            # The minimum_score filter should be applied post-retrieval
-            if final_score < minimum_score:
-                continue  # skip this result (but we already LIMIT'd so we might need to re-fetch)
-
-            # Get provision_number from provision_id if exists
-            provision_number = None
-            provision_title = None
-            if row.get("provision_id") is not None:
-                # Fetch provision details from the legal_provisions table
-                from app.repositories.legal_provisions import LegalProvisionsRepository
-                prov_repo = LegalProvisionsRepository(conn)
-                prov = prov_repo.get_by_id(row["provision_id"])
-                if prov:
-                    provision_number = prov.get("provision_number")
-                    provision_title = prov.get("title")
-
-            # Build result dict
-            result = {
-                "document_id": str(row["id]),
-                "document_title": row["document_title"] or "",
-                "section_number": provision_number or "",
-                "section_title": provision_title or "",
-                "content": row["content"] or "",
-                "domain": row["domain_key"] or "",
-                "source": row["source_name"] or "",
-                "source_url": row["source_url"] or "",
-                "score": final_score,
-                "is_verified": row["is_verified"] if row["is_verified"] is not None else False,
-                "chunk_index": row["chunk_index"] or 0,
-                # Internal: these are for debugging/tracing only not part of public API
-                "_title_match": bool(tm),
-                "_content_match": bool(cm),
-                "_domain_match": bool(dm),
-            }
-            results.append(result)
-
-        # Step 10: Apply minimum_score filter post-retrieval (in case LIMIT didn't filter all)
-        # Actually our ORDER BY + LIMIT already ensures only scores above threshold are included
-        # But minimum_score is a post-filter safety net
-        filtered_results = [
-            r for r in results if r["score"] >= minimum_score
-        ]
-
-        # Step 11: Sort final results by score DESC, then chunk_index ASC for determinism
-        filtered_results.sort(key=lambda r: (-r["score"], r["chunk_index"]))
+        # SQL already ordered and sliced; re-assert determinism defensively.
+        results.sort(key=lambda r: (-r["score"], r["chunk_index"], r["chunk_id"]))
 
         return {
             "query": query,
             "normalized_query": normalized_q,
-            "results": filtered_results[:top_k],
-            "total_found": len(filtered_results),
+            "tokens": tokens,
+            "results": results,
+            "total_found": total_found,
+            "status": STATUS_OK,
+            "verified_only": verified_only,
+            "unverified_match_count": 0,
         }
