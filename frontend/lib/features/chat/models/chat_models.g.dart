@@ -17,6 +17,11 @@ _ConversationMessage _$ConversationMessageFromJson(Map<String, dynamic> json) =>
               ?.map((e) => Citation.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const <Citation>[],
+      followUps:
+          (json['followUps'] as List<dynamic>?)
+              ?.map((e) => FollowUpQuestion.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const <FollowUpQuestion>[],
       grounded: json['grounded'] as bool? ?? false,
       status: json['status'] as String?,
       disclaimer: json['disclaimer'] as String?,
@@ -30,6 +35,7 @@ Map<String, dynamic> _$ConversationMessageToJson(
   'created_at': instance.createdAt,
   'audio': instance.audio,
   'citations': instance.citations,
+  'followUps': instance.followUps,
   'grounded': instance.grounded,
   'status': instance.status,
   'disclaimer': instance.disclaimer,

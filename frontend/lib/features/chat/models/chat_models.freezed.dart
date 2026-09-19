@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ConversationMessage {
 
- String get role; String get content;@JsonKey(name: 'created_at') String? get createdAt; String? get audio; List<Citation> get citations; bool get grounded; String? get status; String? get disclaimer;
+ String get role; String get content;@JsonKey(name: 'created_at') String? get createdAt; String? get audio; List<Citation> get citations; List<FollowUpQuestion> get followUps; bool get grounded; String? get status; String? get disclaimer;
 /// Create a copy of ConversationMessage
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +29,16 @@ $ConversationMessageCopyWith<ConversationMessage> get copyWith => _$Conversation
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationMessage&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.audio, audio) || other.audio == audio)&&const DeepCollectionEquality().equals(other.citations, citations)&&(identical(other.grounded, grounded) || other.grounded == grounded)&&(identical(other.status, status) || other.status == status)&&(identical(other.disclaimer, disclaimer) || other.disclaimer == disclaimer));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationMessage&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.audio, audio) || other.audio == audio)&&const DeepCollectionEquality().equals(other.citations, citations)&&const DeepCollectionEquality().equals(other.followUps, followUps)&&(identical(other.grounded, grounded) || other.grounded == grounded)&&(identical(other.status, status) || other.status == status)&&(identical(other.disclaimer, disclaimer) || other.disclaimer == disclaimer));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,role,content,createdAt,audio,const DeepCollectionEquality().hash(citations),grounded,status,disclaimer);
+int get hashCode => Object.hash(runtimeType,role,content,createdAt,audio,const DeepCollectionEquality().hash(citations),const DeepCollectionEquality().hash(followUps),grounded,status,disclaimer);
 
 @override
 String toString() {
-  return 'ConversationMessage(role: $role, content: $content, createdAt: $createdAt, audio: $audio, citations: $citations, grounded: $grounded, status: $status, disclaimer: $disclaimer)';
+  return 'ConversationMessage(role: $role, content: $content, createdAt: $createdAt, audio: $audio, citations: $citations, followUps: $followUps, grounded: $grounded, status: $status, disclaimer: $disclaimer)';
 }
 
 
@@ -49,7 +49,7 @@ abstract mixin class $ConversationMessageCopyWith<$Res>  {
   factory $ConversationMessageCopyWith(ConversationMessage value, $Res Function(ConversationMessage) _then) = _$ConversationMessageCopyWithImpl;
 @useResult
 $Res call({
- String role, String content,@JsonKey(name: 'created_at') String? createdAt, String? audio, List<Citation> citations, bool grounded, String? status, String? disclaimer
+ String role, String content,@JsonKey(name: 'created_at') String? createdAt, String? audio, List<Citation> citations, List<FollowUpQuestion> followUps, bool grounded, String? status, String? disclaimer
 });
 
 
@@ -66,14 +66,15 @@ class _$ConversationMessageCopyWithImpl<$Res>
 
 /// Create a copy of ConversationMessage
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? role = null,Object? content = null,Object? createdAt = freezed,Object? audio = freezed,Object? citations = null,Object? grounded = null,Object? status = freezed,Object? disclaimer = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? role = null,Object? content = null,Object? createdAt = freezed,Object? audio = freezed,Object? citations = null,Object? followUps = null,Object? grounded = null,Object? status = freezed,Object? disclaimer = freezed,}) {
   return _then(ConversationMessage(
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String?,audio: freezed == audio ? _self.audio : audio // ignore: cast_nullable_to_non_nullable
 as String?,citations: null == citations ? _self.citations : citations // ignore: cast_nullable_to_non_nullable
-as List<Citation>,grounded: null == grounded ? _self.grounded : grounded // ignore: cast_nullable_to_non_nullable
+as List<Citation>,followUps: null == followUps ? _self.followUps : followUps // ignore: cast_nullable_to_non_nullable
+as List<FollowUpQuestion>,grounded: null == grounded ? _self.grounded : grounded // ignore: cast_nullable_to_non_nullable
 as bool,status: freezed == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String?,disclaimer: freezed == disclaimer ? _self.disclaimer : disclaimer // ignore: cast_nullable_to_non_nullable
 as String?,
@@ -158,10 +159,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String role,  String content, @JsonKey(name: 'created_at')  String? createdAt,  String? audio,  List<Citation> citations,  bool grounded,  String? status,  String? disclaimer)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String role,  String content, @JsonKey(name: 'created_at')  String? createdAt,  String? audio,  List<Citation> citations,  List<FollowUpQuestion> followUps,  bool grounded,  String? status,  String? disclaimer)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationMessage() when $default != null:
-return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citations,_that.grounded,_that.status,_that.disclaimer);case _:
+return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citations,_that.followUps,_that.grounded,_that.status,_that.disclaimer);case _:
   return orElse();
 
 }
@@ -179,10 +180,10 @@ return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citat
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String role,  String content, @JsonKey(name: 'created_at')  String? createdAt,  String? audio,  List<Citation> citations,  bool grounded,  String? status,  String? disclaimer)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String role,  String content, @JsonKey(name: 'created_at')  String? createdAt,  String? audio,  List<Citation> citations,  List<FollowUpQuestion> followUps,  bool grounded,  String? status,  String? disclaimer)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationMessage():
-return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citations,_that.grounded,_that.status,_that.disclaimer);}
+return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citations,_that.followUps,_that.grounded,_that.status,_that.disclaimer);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -196,10 +197,10 @@ return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citat
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String role,  String content, @JsonKey(name: 'created_at')  String? createdAt,  String? audio,  List<Citation> citations,  bool grounded,  String? status,  String? disclaimer)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String role,  String content, @JsonKey(name: 'created_at')  String? createdAt,  String? audio,  List<Citation> citations,  List<FollowUpQuestion> followUps,  bool grounded,  String? status,  String? disclaimer)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationMessage() when $default != null:
-return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citations,_that.grounded,_that.status,_that.disclaimer);case _:
+return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citations,_that.followUps,_that.grounded,_that.status,_that.disclaimer);case _:
   return null;
 
 }
@@ -211,7 +212,7 @@ return $default(_that.role,_that.content,_that.createdAt,_that.audio,_that.citat
 @JsonSerializable()
 
 class _ConversationMessage implements ConversationMessage {
-  const _ConversationMessage({required this.role, this.content = '', @JsonKey(name: 'created_at') this.createdAt, this.audio,  List<Citation> citations = const <Citation>[], this.grounded = false, this.status, this.disclaimer}): _citations = citations;
+  const _ConversationMessage({required this.role, this.content = '', @JsonKey(name: 'created_at') this.createdAt, this.audio,  List<Citation> citations = const <Citation>[],  List<FollowUpQuestion> followUps = const <FollowUpQuestion>[], this.grounded = false, this.status, this.disclaimer}): _citations = citations,_followUps = followUps;
   factory _ConversationMessage.fromJson(Map<String, dynamic> json) => _$ConversationMessageFromJson(json);
 
 @override final  String role;
@@ -223,6 +224,13 @@ class _ConversationMessage implements ConversationMessage {
   if (_citations is EqualUnmodifiableListView) return _citations;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_citations);
+}
+
+ final  List<FollowUpQuestion> _followUps;
+@override@JsonKey() List<FollowUpQuestion> get followUps {
+  if (_followUps is EqualUnmodifiableListView) return _followUps;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_followUps);
 }
 
 @override@JsonKey() final  bool grounded;
@@ -242,16 +250,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationMessage&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.audio, audio) || other.audio == audio)&&const DeepCollectionEquality().equals(other._citations, _citations)&&(identical(other.grounded, grounded) || other.grounded == grounded)&&(identical(other.status, status) || other.status == status)&&(identical(other.disclaimer, disclaimer) || other.disclaimer == disclaimer));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationMessage&&(identical(other.role, role) || other.role == role)&&(identical(other.content, content) || other.content == content)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.audio, audio) || other.audio == audio)&&const DeepCollectionEquality().equals(other._citations, _citations)&&const DeepCollectionEquality().equals(other._followUps, _followUps)&&(identical(other.grounded, grounded) || other.grounded == grounded)&&(identical(other.status, status) || other.status == status)&&(identical(other.disclaimer, disclaimer) || other.disclaimer == disclaimer));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,role,content,createdAt,audio,const DeepCollectionEquality().hash(_citations),grounded,status,disclaimer);
+int get hashCode => Object.hash(runtimeType,role,content,createdAt,audio,const DeepCollectionEquality().hash(_citations),const DeepCollectionEquality().hash(_followUps),grounded,status,disclaimer);
 
 @override
 String toString() {
-  return 'ConversationMessage(role: $role, content: $content, createdAt: $createdAt, audio: $audio, citations: $citations, grounded: $grounded, status: $status, disclaimer: $disclaimer)';
+  return 'ConversationMessage(role: $role, content: $content, createdAt: $createdAt, audio: $audio, citations: $citations, followUps: $followUps, grounded: $grounded, status: $status, disclaimer: $disclaimer)';
 }
 
 
@@ -262,7 +270,7 @@ abstract mixin class _$ConversationMessageCopyWith<$Res> implements $Conversatio
   factory _$ConversationMessageCopyWith(_ConversationMessage value, $Res Function(_ConversationMessage) _then) = __$ConversationMessageCopyWithImpl;
 @override @useResult
 $Res call({
- String role, String content,@JsonKey(name: 'created_at') String? createdAt, String? audio, List<Citation> citations, bool grounded, String? status, String? disclaimer
+ String role, String content,@JsonKey(name: 'created_at') String? createdAt, String? audio, List<Citation> citations, List<FollowUpQuestion> followUps, bool grounded, String? status, String? disclaimer
 });
 
 
@@ -279,14 +287,15 @@ class __$ConversationMessageCopyWithImpl<$Res>
 
 /// Create a copy of ConversationMessage
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,Object? createdAt = freezed,Object? audio = freezed,Object? citations = null,Object? grounded = null,Object? status = freezed,Object? disclaimer = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? role = null,Object? content = null,Object? createdAt = freezed,Object? audio = freezed,Object? citations = null,Object? followUps = null,Object? grounded = null,Object? status = freezed,Object? disclaimer = freezed,}) {
   return _then(_ConversationMessage(
 role: null == role ? _self.role : role // ignore: cast_nullable_to_non_nullable
 as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as String?,audio: freezed == audio ? _self.audio : audio // ignore: cast_nullable_to_non_nullable
 as String?,citations: null == citations ? _self._citations : citations // ignore: cast_nullable_to_non_nullable
-as List<Citation>,grounded: null == grounded ? _self.grounded : grounded // ignore: cast_nullable_to_non_nullable
+as List<Citation>,followUps: null == followUps ? _self._followUps : followUps // ignore: cast_nullable_to_non_nullable
+as List<FollowUpQuestion>,grounded: null == grounded ? _self.grounded : grounded // ignore: cast_nullable_to_non_nullable
 as bool,status: freezed == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String?,disclaimer: freezed == disclaimer ? _self.disclaimer : disclaimer // ignore: cast_nullable_to_non_nullable
 as String?,

@@ -59,7 +59,7 @@ class HomeScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
                     // .cards-grid
                     Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         Expanded(
                           child: _ActionCard(
