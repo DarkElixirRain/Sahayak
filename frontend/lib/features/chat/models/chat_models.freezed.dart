@@ -300,7 +300,7 @@ as String?,
 /// @nodoc
 mixin _$Citation {
 
- String get document; String get section; String get provision; String get source; double get score;@JsonKey(name: 'source_url') String? get sourceUrl;
+ String get document; String get section; String get provision; String get source; double get score;@JsonKey(name: 'source_url') String? get sourceUrl;@JsonKey(name: 'section_title') String? get sectionTitle;@JsonKey(name: 'is_verified') bool get isVerified;@JsonKey(name: 'currentness_status') String get currentnessStatus;
 /// Create a copy of Citation
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -313,16 +313,16 @@ $CitationCopyWith<Citation> get copyWith => _$CitationCopyWithImpl<Citation>(thi
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Citation&&(identical(other.document, document) || other.document == document)&&(identical(other.section, section) || other.section == section)&&(identical(other.provision, provision) || other.provision == provision)&&(identical(other.source, source) || other.source == source)&&(identical(other.score, score) || other.score == score)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Citation&&(identical(other.document, document) || other.document == document)&&(identical(other.section, section) || other.section == section)&&(identical(other.provision, provision) || other.provision == provision)&&(identical(other.source, source) || other.source == source)&&(identical(other.score, score) || other.score == score)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl)&&(identical(other.sectionTitle, sectionTitle) || other.sectionTitle == sectionTitle)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.currentnessStatus, currentnessStatus) || other.currentnessStatus == currentnessStatus));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,document,section,provision,source,score,sourceUrl);
+int get hashCode => Object.hash(runtimeType,document,section,provision,source,score,sourceUrl,sectionTitle,isVerified,currentnessStatus);
 
 @override
 String toString() {
-  return 'Citation(document: $document, section: $section, provision: $provision, source: $source, score: $score, sourceUrl: $sourceUrl)';
+  return 'Citation(document: $document, section: $section, provision: $provision, source: $source, score: $score, sourceUrl: $sourceUrl, sectionTitle: $sectionTitle, isVerified: $isVerified, currentnessStatus: $currentnessStatus)';
 }
 
 
@@ -333,7 +333,7 @@ abstract mixin class $CitationCopyWith<$Res>  {
   factory $CitationCopyWith(Citation value, $Res Function(Citation) _then) = _$CitationCopyWithImpl;
 @useResult
 $Res call({
- String document, String section, String provision, String source, double score,@JsonKey(name: 'source_url') String? sourceUrl
+ String document, String section, String provision, String source, double score,@JsonKey(name: 'source_url') String? sourceUrl,@JsonKey(name: 'section_title') String? sectionTitle,@JsonKey(name: 'is_verified') bool isVerified,@JsonKey(name: 'currentness_status') String currentnessStatus
 });
 
 
@@ -350,7 +350,7 @@ class _$CitationCopyWithImpl<$Res>
 
 /// Create a copy of Citation
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? document = null,Object? section = null,Object? provision = null,Object? source = null,Object? score = null,Object? sourceUrl = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? document = null,Object? section = null,Object? provision = null,Object? source = null,Object? score = null,Object? sourceUrl = freezed,Object? sectionTitle = freezed,Object? isVerified = null,Object? currentnessStatus = null,}) {
   return _then(Citation(
 document: null == document ? _self.document : document // ignore: cast_nullable_to_non_nullable
 as String,section: null == section ? _self.section : section // ignore: cast_nullable_to_non_nullable
@@ -358,7 +358,10 @@ as String,provision: null == provision ? _self.provision : provision // ignore: 
 as String,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as String,score: null == score ? _self.score : score // ignore: cast_nullable_to_non_nullable
 as double,sourceUrl: freezed == sourceUrl ? _self.sourceUrl : sourceUrl // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,sectionTitle: freezed == sectionTitle ? _self.sectionTitle : sectionTitle // ignore: cast_nullable_to_non_nullable
+as String?,isVerified: null == isVerified ? _self.isVerified : isVerified // ignore: cast_nullable_to_non_nullable
+as bool,currentnessStatus: null == currentnessStatus ? _self.currentnessStatus : currentnessStatus // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 
@@ -440,10 +443,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String document,  String section,  String provision,  String source,  double score, @JsonKey(name: 'source_url')  String? sourceUrl)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String document,  String section,  String provision,  String source,  double score, @JsonKey(name: 'source_url')  String? sourceUrl, @JsonKey(name: 'section_title')  String? sectionTitle, @JsonKey(name: 'is_verified')  bool isVerified, @JsonKey(name: 'currentness_status')  String currentnessStatus)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Citation() when $default != null:
-return $default(_that.document,_that.section,_that.provision,_that.source,_that.score,_that.sourceUrl);case _:
+return $default(_that.document,_that.section,_that.provision,_that.source,_that.score,_that.sourceUrl,_that.sectionTitle,_that.isVerified,_that.currentnessStatus);case _:
   return orElse();
 
 }
@@ -461,10 +464,10 @@ return $default(_that.document,_that.section,_that.provision,_that.source,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String document,  String section,  String provision,  String source,  double score, @JsonKey(name: 'source_url')  String? sourceUrl)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String document,  String section,  String provision,  String source,  double score, @JsonKey(name: 'source_url')  String? sourceUrl, @JsonKey(name: 'section_title')  String? sectionTitle, @JsonKey(name: 'is_verified')  bool isVerified, @JsonKey(name: 'currentness_status')  String currentnessStatus)  $default,) {final _that = this;
 switch (_that) {
 case _Citation():
-return $default(_that.document,_that.section,_that.provision,_that.source,_that.score,_that.sourceUrl);}
+return $default(_that.document,_that.section,_that.provision,_that.source,_that.score,_that.sourceUrl,_that.sectionTitle,_that.isVerified,_that.currentnessStatus);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -478,10 +481,10 @@ return $default(_that.document,_that.section,_that.provision,_that.source,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String document,  String section,  String provision,  String source,  double score, @JsonKey(name: 'source_url')  String? sourceUrl)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String document,  String section,  String provision,  String source,  double score, @JsonKey(name: 'source_url')  String? sourceUrl, @JsonKey(name: 'section_title')  String? sectionTitle, @JsonKey(name: 'is_verified')  bool isVerified, @JsonKey(name: 'currentness_status')  String currentnessStatus)?  $default,) {final _that = this;
 switch (_that) {
 case _Citation() when $default != null:
-return $default(_that.document,_that.section,_that.provision,_that.source,_that.score,_that.sourceUrl);case _:
+return $default(_that.document,_that.section,_that.provision,_that.source,_that.score,_that.sourceUrl,_that.sectionTitle,_that.isVerified,_that.currentnessStatus);case _:
   return null;
 
 }
@@ -493,7 +496,7 @@ return $default(_that.document,_that.section,_that.provision,_that.source,_that.
 @JsonSerializable()
 
 class _Citation implements Citation {
-  const _Citation({required this.document, required this.section, required this.provision, required this.source, required this.score, @JsonKey(name: 'source_url') this.sourceUrl});
+  const _Citation({required this.document, required this.section, required this.provision, required this.source, required this.score, @JsonKey(name: 'source_url') this.sourceUrl, @JsonKey(name: 'section_title') this.sectionTitle, @JsonKey(name: 'is_verified') this.isVerified = false, @JsonKey(name: 'currentness_status') this.currentnessStatus = 'unknown'});
   factory _Citation.fromJson(Map<String, dynamic> json) => _$CitationFromJson(json);
 
 @override final  String document;
@@ -502,6 +505,9 @@ class _Citation implements Citation {
 @override final  String source;
 @override final  double score;
 @override@JsonKey(name: 'source_url') final  String? sourceUrl;
+@override@JsonKey(name: 'section_title') final  String? sectionTitle;
+@override@JsonKey(name: 'is_verified') final  bool isVerified;
+@override@JsonKey(name: 'currentness_status') final  String currentnessStatus;
 
 /// Create a copy of Citation
 /// with the given fields replaced by the non-null parameter values.
@@ -516,16 +522,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Citation&&(identical(other.document, document) || other.document == document)&&(identical(other.section, section) || other.section == section)&&(identical(other.provision, provision) || other.provision == provision)&&(identical(other.source, source) || other.source == source)&&(identical(other.score, score) || other.score == score)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Citation&&(identical(other.document, document) || other.document == document)&&(identical(other.section, section) || other.section == section)&&(identical(other.provision, provision) || other.provision == provision)&&(identical(other.source, source) || other.source == source)&&(identical(other.score, score) || other.score == score)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl)&&(identical(other.sectionTitle, sectionTitle) || other.sectionTitle == sectionTitle)&&(identical(other.isVerified, isVerified) || other.isVerified == isVerified)&&(identical(other.currentnessStatus, currentnessStatus) || other.currentnessStatus == currentnessStatus));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,document,section,provision,source,score,sourceUrl);
+int get hashCode => Object.hash(runtimeType,document,section,provision,source,score,sourceUrl,sectionTitle,isVerified,currentnessStatus);
 
 @override
 String toString() {
-  return 'Citation(document: $document, section: $section, provision: $provision, source: $source, score: $score, sourceUrl: $sourceUrl)';
+  return 'Citation(document: $document, section: $section, provision: $provision, source: $source, score: $score, sourceUrl: $sourceUrl, sectionTitle: $sectionTitle, isVerified: $isVerified, currentnessStatus: $currentnessStatus)';
 }
 
 
@@ -536,7 +542,7 @@ abstract mixin class _$CitationCopyWith<$Res> implements $CitationCopyWith<$Res>
   factory _$CitationCopyWith(_Citation value, $Res Function(_Citation) _then) = __$CitationCopyWithImpl;
 @override @useResult
 $Res call({
- String document, String section, String provision, String source, double score,@JsonKey(name: 'source_url') String? sourceUrl
+ String document, String section, String provision, String source, double score,@JsonKey(name: 'source_url') String? sourceUrl,@JsonKey(name: 'section_title') String? sectionTitle,@JsonKey(name: 'is_verified') bool isVerified,@JsonKey(name: 'currentness_status') String currentnessStatus
 });
 
 
@@ -553,7 +559,7 @@ class __$CitationCopyWithImpl<$Res>
 
 /// Create a copy of Citation
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? document = null,Object? section = null,Object? provision = null,Object? source = null,Object? score = null,Object? sourceUrl = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? document = null,Object? section = null,Object? provision = null,Object? source = null,Object? score = null,Object? sourceUrl = freezed,Object? sectionTitle = freezed,Object? isVerified = null,Object? currentnessStatus = null,}) {
   return _then(_Citation(
 document: null == document ? _self.document : document // ignore: cast_nullable_to_non_nullable
 as String,section: null == section ? _self.section : section // ignore: cast_nullable_to_non_nullable
@@ -561,7 +567,10 @@ as String,provision: null == provision ? _self.provision : provision // ignore: 
 as String,source: null == source ? _self.source : source // ignore: cast_nullable_to_non_nullable
 as String,score: null == score ? _self.score : score // ignore: cast_nullable_to_non_nullable
 as double,sourceUrl: freezed == sourceUrl ? _self.sourceUrl : sourceUrl // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,sectionTitle: freezed == sectionTitle ? _self.sectionTitle : sectionTitle // ignore: cast_nullable_to_non_nullable
+as String?,isVerified: null == isVerified ? _self.isVerified : isVerified // ignore: cast_nullable_to_non_nullable
+as bool,currentnessStatus: null == currentnessStatus ? _self.currentnessStatus : currentnessStatus // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

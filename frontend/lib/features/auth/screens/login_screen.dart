@@ -3,6 +3,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../app/theme/sahayak_theme.dart';
 import '../providers/auth_provider.dart';
 import '../models/auth_state.dart';
 
@@ -22,7 +23,10 @@ class LoginScreen extends HookConsumerWidget {
         final val = next.value!;
         if (val is AuthStateError) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(val.message), backgroundColor: Colors.red),
+            SnackBar(
+                content: Text(val.message),
+                backgroundColor:
+                    Theme.of(context).colorScheme.error),
           );
         } else if (val is AuthStateAuthenticated) {
           context.go('/home');
@@ -44,26 +48,33 @@ class LoginScreen extends HookConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Icon(Icons.balance, size: 64, color: Colors.blue),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Welcome back to Sahayak',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ShaderMask(
+                    shaderCallback: (bounds) =>
+                        SahayakColors.headingGradient.createShader(bounds),
+                    child: const Icon(Icons.balance,
+                        size: 56, color: Colors.white),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 20),
                   const Text(
-                    'Sign in to continue',
+                    'सहायकमा फेरि स्वागत छ',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey),
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 6),
+                  Text(
+                    'जारी राख्न साइन इन गर्नुहोस्',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 13.5),
+                  ),
+                  const SizedBox(height: 28),
                   TextFormField(
                     controller: emailController,
                     decoration: const InputDecoration(
                       labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email),
+                      prefixIcon: Icon(Icons.email_outlined),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
@@ -76,13 +87,12 @@ class LoginScreen extends HookConsumerWidget {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   TextFormField(
                     controller: passwordController,
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
                           isPasswordVisible.value
@@ -102,37 +112,37 @@ class LoginScreen extends HookConsumerWidget {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            if (formKey.currentState!.validate()) {
-                              ref
-                                  .read(authProvider.notifier)
-                                  .login(
-                                    emailController.text,
-                                    passwordController.text,
-                                  );
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () {
+                              if (formKey.currentState!.validate()) {
+                                ref
+                                    .read(authProvider.notifier)
+                                    .login(
+                                      emailController.text,
+                                      passwordController.text,
+                                    );
+                              }
+                            },
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Login'),
                     ),
-                    child: isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Login'),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   TextButton(
-                    onPressed: isLoading
-                        ? null
-                        : () => context.push('/register'),
-                    child: const Text('Don\'t have an account? Sign up'),
+                    onPressed:
+                        isLoading ? null : () => context.push('/register'),
+                    child: const Text("Don't have an account? Sign up"),
                   ),
                 ],
               ),

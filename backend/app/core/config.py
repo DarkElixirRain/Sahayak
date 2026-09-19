@@ -60,6 +60,11 @@ class Settings:
     llm_model: str = os.getenv("LLM_MODEL", "llama-3.1-8b-instant").strip()
     llm_base_url: str = os.getenv("LLM_BASE_URL", "").strip()
     llm_timeout_seconds: float = _env_float("LLM_TIMEOUT_SECONDS", 30.0)
+    # --- NyayaLM / Ollama (local) -----------------------------------------
+    # Set LLM_PROVIDER=ollama or LLM_PROVIDER=nyayalm to use a local Ollama
+    # instance. No API key is required. Default model is NyayaLM 1.7B Q4_K_M.
+    nyayalm_model: str = os.getenv("NYAYALM_MODEL", "hf.co/chhatramani/nyayalm1.7B_civil9law:Q4_K_M").strip()
+    nyayalm_base_url: str = os.getenv("NYAYALM_URL", "http://localhost:11434").strip()
     # --- Voice integration -------------------------------------------------
     voice_provider: str = os.getenv("VOICE_PROVIDER", "mock").strip().lower() or "mock"
     max_audio_size_mb: int = int(os.getenv("MAX_AUDIO_SIZE_MB", "5"))

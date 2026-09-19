@@ -1,0 +1,894 @@
+{
+  "tests": {
+    "TEST_A_INHERITANCE": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "भाइले",
+          "हाम्रो",
+          "बुबाको",
+          "नाममा",
+          "रहेको",
+          "जग्गा",
+          "आफ्नो",
+          "राख्न",
+          "खोजिरहेको",
+          "हामी",
+          "दुई",
+          "जना",
+          "दाजुभाइ",
+          "हौँ",
+          "मृत्यु",
+          "भइसकेको",
+          "यस्तो",
+          "अवस्थामा",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition",
+          "inheritance"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-test-a-inheritance-9e7c4d",
+      "input": "मेरो भाइले हाम्रो बुबाको नाममा रहेको जग्गा आफ्नो नाममा राख्न खोजिरहेको छ। हामी दुई जना दाजुभाइ हौँ। बुबाको मृत्यु भइसकेको छ। यस्तो अवस्थामा मैले के गर्न सक्छु?",
+      "latency_seconds": 8.5
+    },
+    "TEST_B_KABJA": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "भाइले",
+          "जग्गा",
+          "कब्जा",
+          "गर्नुपर्छ",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition",
+          "inheritance"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-test-b-kabja-9e6a33",
+      "input": "मेरो भाइले मेरो जग्गा कब्जा गरेको छ। अब मैले के गर्नुपर्छ?",
+      "latency_seconds": 8.1
+    },
+    "TEST_C_LOAN": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "यो के प्रकारको मुद्दा हो — सम्पत्ति, पारिवारिक, फौजदारी, वा अन्य?",
+            "reason": "missing_matter_type"
+          },
+          {
+            "question": "यस मुद्दामा अर्को पक्ष को हो?",
+            "reason": "missing_opposing_party"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "एक",
+          "जना",
+          "व्यक्तिलाई",
+          "रु",
+          "५",
+          "लाख",
+          "सापटी",
+          "दिएको",
+          "थिएँ",
+          "उसले",
+          "पैसा",
+          "फिर्ता",
+          "गर्दिनँ",
+          "भनिरहेको",
+          "लिखित",
+          "कागज",
+          "कानुनी",
+          "रूपमा"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-test-c-loan-1ab410",
+      "input": "मैले एक जना व्यक्तिलाई रु ५ लाख सापटी दिएको थिएँ। उसले पैसा फिर्ता गर्दिनँ भनिरहेको छ। लिखित कागज पनि छ। अब कानुनी रूपमा के गर्न सक्छु?",
+      "latency_seconds": 8.3
+    },
+    "TEST_D_ASSAULT": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "यो के प्रकारको मुद्दा हो — सम्पत्ति, पारिवारिक, फौजदारी, वा अन्य?",
+            "reason": "missing_matter_type"
+          },
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "छिमेकीले",
+          "कुटपिट",
+          "शरीरमा",
+          "चोट",
+          "लागेको",
+          "अस्पतालको",
+          "रिपोर्ट",
+          "उजुरी",
+          "गर्नुपर्छ"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-test-d-assault-e1a65f",
+      "input": "मेरो छिमेकीले मलाई कुटपिट गरेको छ। मेरो शरीरमा चोट लागेको छ र अस्पतालको रिपोर्ट पनि छ। अब मैले कहाँ उजुरी गर्नुपर्छ?",
+      "latency_seconds": 8.1
+    },
+    "TEST_E_BITCOIN_TAX": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "यो के प्रकारको मुद्दा हो — सम्पत्ति, पारिवारिक, फौजदारी, वा अन्य?",
+            "reason": "missing_matter_type"
+          },
+          {
+            "question": "यस मुद्दामा अर्को पक्ष को हो?",
+            "reason": "missing_opposing_party"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "नेपालमा",
+          "bitcoin",
+          "कमाएको",
+          "पैसामा",
+          "अहिले",
+          "प्रतिशत",
+          "कर",
+          "लाग्छ"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-test-e-bitcoin-tax-c87f6f",
+      "input": "नेपालमा Bitcoin बाट कमाएको पैसामा अहिले कति प्रतिशत कर लाग्छ?",
+      "latency_seconds": 8.2
+    },
+    "TEST_F_PROPERTY_LAW_GENERAL": {
+      "http_status": 200,
+      "body": {
+        "answer": "सम्पत्ति कानून भन्नाले त्यस्तो सम्पत्तिको बसोबास गर्ने विदेशीको हकवाला निर्धारण गर्ने विदेशी कानून बमोजिम गरिने र त्यसरी नागरिकता पहिचान हुन नसकेमा जुन मुलुकमा निजको सामान्य बसोबास रहेको छ सोही मुलुकको कानून बमोजिम हकवाला निर्धारण गरिने अर्थले उल्लेख गरिएको छ।\n\n**स्पष्ट व्यवस्था:**\n\n1. **विदेशी कानून बमोजिम हकवाला निर्धारण** — विदेशीको सम्पत्तिमा अपुताली परी निजको हकवाला निर्धारण गर्नु पर्ने विदेशी कानून बमोजिम गरिनेछ।\n2. **नागरिकता पहिचान नभएमा मुलुकको कानून** — जुन मुलुकमा निजको सामान्य बसोबास रहेको छ त्यो",
+        "citations": [
+          {
+            "document": "मुलुकी देवानी संहिता, २०७४",
+            "section": "620",
+            "provision": "अचल सम्पत्तिको लिज करार सम्बन्धी विशेष व्यवस्था",
+            "source": "नेपाल कानून आयोग (Nepal Law Commission)",
+            "source_url": "https://lawcommission.gov.np/content/13455/civil-code-2074",
+            "score": 0.66,
+            "source_id": "5b91b67e-606a-4ff3-89a9-a37007417529",
+            "source_type": "law_commission",
+            "source_is_verified": true,
+            "document_id": "b6a4a29e-ed21-4432-91d0-84636088fd94",
+            "provision_id": "a7e6b154-2fe3-45ce-bbc0-dc1baf7c9162",
+            "chunk_id": "7fdf404a-41f9-4f3c-99e1-467e8c6061d5",
+            "chunk_index": 1,
+            "section_title": "अचल सम्पत्तिको लिज करार सम्बन्धी विशेष व्यवस्था",
+            "domain": "civil",
+            "is_verified": true,
+            "currentness_status": "current"
+          },
+          {
+            "document": "मुलुकी देवानी संहिता, २०७४",
+            "section": "707",
+            "provision": "स्वामित्वको अन्तरवस्तु सम्पत्ति रहेको मुलुकको कानून बमोजिम हुने",
+            "source": "नेपाल कानून आयोग (Nepal Law Commission)",
+            "source_url": "https://lawcommission.gov.np/content/13455/civil-code-2074",
+            "score": 0.52,
+            "source_id": "5b91b67e-606a-4ff3-89a9-a37007417529",
+            "source_type": "law_commission",
+            "source_is_verified": true,
+            "document_id": "b6a4a29e-ed21-4432-91d0-84636088fd94",
+            "provision_id": "9f7a7e11-921d-4394-81a1-505711f81eac",
+            "chunk_id": "a129b652-e6e9-42c3-94be-bfc5e3523a2d",
+            "chunk_index": 1,
+            "section_title": "स्वामित्वको अन्तरवस्तु सम्पत्ति रहेको मुलुकको कानून बमोजिम हुने",
+            "domain": "civil",
+            "is_verified": true,
+            "currentness_status": "current"
+          },
+          {
+            "document": "मुलुकी देवानी संहिता, २०७४",
+            "section": "63",
+            "provision": "सम्पत्ति छुट्याउनु पर्ने",
+            "source": "नेपाल कानून आयोग (Nepal Law Commission)",
+            "source_url": "https://lawcommission.gov.np/content/13455/civil-code-2074",
+            "score": 0.46,
+            "source_id": "5b91b67e-606a-4ff3-89a9-a37007417529",
+            "source_type": "law_commission",
+            "source_is_verified": true,
+            "document_id": "b6a4a29e-ed21-4432-91d0-84636088fd94",
+            "provision_id": "2e53e0e0-def6-41d2-8c7e-3439140727ad",
+            "chunk_id": "006f6ebd-325f-43f4-8bdd-004f98da91be",
+            "chunk_index": 1,
+            "section_title": "सम्पत्ति छुट्याउनु पर्ने",
+            "domain": "civil",
+            "is_verified": true,
+            "currentness_status": "current"
+          },
+          {
+            "document": "मुलुकी देवानी संहिता, २०७४",
+            "section": "695",
+            "provision": "हकवालाको निर्धारण विदेशी कानून बमोजिम गरिने",
+            "source": "नेपाल कानून आयोग (Nepal Law Commission)",
+            "source_url": "https://lawcommission.gov.np/content/13455/civil-code-2074",
+            "score": 0.46,
+            "source_id": "5b91b67e-606a-4ff3-89a9-a37007417529",
+            "source_type": "law_commission",
+            "source_is_verified": true,
+            "document_id": "b6a4a29e-ed21-4432-91d0-84636088fd94",
+            "provision_id": "e99f1b31-cd00-4615-821c-24556b9fbe22",
+            "chunk_id": "1aa9e5a8-c0f2-490d-9bad-e84f597b0f0e",
+            "chunk_index": 1,
+            "section_title": "हकवालाको निर्धारण विदेशी कानून बमोजिम गरिने",
+            "domain": "civil",
+            "is_verified": true,
+            "currentness_status": "current"
+          },
+          {
+            "document": "मुलुकी देवानी संहिता, २०७४",
+            "section": "42",
+            "provision": "कानूनी व्यक्तिले सक्षमता प्राप्त गर्ने",
+            "source": "नेपाल कानून आयोग (Nepal Law Commission)",
+            "source_url": "https://lawcommission.gov.np/content/13455/civil-code-2074",
+            "score": 0.46,
+            "source_id": "5b91b67e-606a-4ff3-89a9-a37007417529",
+            "source_type": "law_commission",
+            "source_is_verified": true,
+            "document_id": "b6a4a29e-ed21-4432-91d0-84636088fd94",
+            "provision_id": "312831ae-0bad-4cd2-ab5c-c3b404abb0be",
+            "chunk_id": "1b700497-876e-4499-b5cb-4db95ee54098",
+            "chunk_index": 1,
+            "section_title": "कानूनी व्यक्तिले सक्षमता प्राप्त गर्ने",
+            "domain": "civil",
+            "is_verified": true,
+            "currentness_status": "current"
+          }
+        ],
+        "follow_up_questions": [
+          {
+            "question": "यस मुद्दामा अर्को पक्ष को हो?",
+            "reason": "missing_opposing_party"
+          },
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          }
+        ],
+        "needs_clarification": false,
+        "confidence": "medium",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "answered",
+        "grounded": true,
+        "generation": "llm",
+        "llm_provider": "ollama",
+        "llm_model": "hf.co/chhatramani/nyayalm1.7B_civil9law:Q4_K_M",
+        "llm_error": null,
+        "retrieval_status": "ok",
+        "retrieval_total_found": 31,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "सम्पत्ति",
+          "कानून",
+          "भनेको",
+          "जग्गा",
+          "property"
+        ],
+        "audio": null
+      },
+      "citation_verification": [
+        {
+          "cited_document": "मुलुकी देवानी संहिता, २०७४",
+          "cited_section": "620",
+          "cited_section_title": "अचल सम्पत्तिको लिज करार सम्बन्धी विशेष व्यवस्था",
+          "chunk_id": "7fdf404a-41f9-4f3c-99e1-467e8c6061d5",
+          "db_row_found": true,
+          "db_is_verified": true,
+          "db_document_title": "मुलुकी देवानी संहिता, २०७४",
+          "db_provision_number": "620",
+          "db_provision_title": "अचल सम्पत्तिको लिज करार सम्बन्धी विशेष व्यवस्था",
+          "db_document_status": "current",
+          "db_source_name": "नेपाल कानून आयोग (Nepal Law Commission)",
+          "match_document": true,
+          "match_section": true
+        },
+        {
+          "cited_document": "मुलुकी देवानी संहिता, २०७४",
+          "cited_section": "707",
+          "cited_section_title": "स्वामित्वको अन्तरवस्तु सम्पत्ति रहेको मुलुकको कानून बमोजिम हुने",
+          "chunk_id": "a129b652-e6e9-42c3-94be-bfc5e3523a2d",
+          "db_row_found": true,
+          "db_is_verified": true,
+          "db_document_title": "मुलुकी देवानी संहिता, २०७४",
+          "db_provision_number": "707",
+          "db_provision_title": "स्वामित्वको अन्तरवस्तु सम्पत्ति रहेको मुलुकको कानून बमोजिम हुने",
+          "db_document_status": "current",
+          "db_source_name": "नेपाल कानून आयोग (Nepal Law Commission)",
+          "match_document": true,
+          "match_section": true
+        },
+        {
+          "cited_document": "मुलुकी देवानी संहिता, २०७४",
+          "cited_section": "63",
+          "cited_section_title": "सम्पत्ति छुट्याउनु पर्ने",
+          "chunk_id": "006f6ebd-325f-43f4-8bdd-004f98da91be",
+          "db_row_found": true,
+          "db_is_verified": true,
+          "db_document_title": "मुलुकी देवानी संहिता, २०७४",
+          "db_provision_number": "63",
+          "db_provision_title": "सम्पत्ति छुट्याउनु पर्ने",
+          "db_document_status": "current",
+          "db_source_name": "नेपाल कानून आयोग (Nepal Law Commission)",
+          "match_document": true,
+          "match_section": true
+        },
+        {
+          "cited_document": "मुलुकी देवानी संहिता, २०७४",
+          "cited_section": "695",
+          "cited_section_title": "हकवालाको निर्धारण विदेशी कानून बमोजिम गरिने",
+          "chunk_id": "1aa9e5a8-c0f2-490d-9bad-e84f597b0f0e",
+          "db_row_found": true,
+          "db_is_verified": true,
+          "db_document_title": "मुलुकी देवानी संहिता, २०७४",
+          "db_provision_number": "695",
+          "db_provision_title": "हकवालाको निर्धारण विदेशी कानून बमोजिम गरिने",
+          "db_document_status": "current",
+          "db_source_name": "नेपाल कानून आयोग (Nepal Law Commission)",
+          "match_document": true,
+          "match_section": true
+        },
+        {
+          "cited_document": "मुलुकी देवानी संहिता, २०७४",
+          "cited_section": "42",
+          "cited_section_title": "कानूनी व्यक्तिले सक्षमता प्राप्त गर्ने",
+          "chunk_id": "1b700497-876e-4499-b5cb-4db95ee54098",
+          "db_row_found": true,
+          "db_is_verified": true,
+          "db_document_title": "मुलुकी देवानी संहिता, २०७४",
+          "db_provision_number": "42",
+          "db_provision_title": "कानूनी व्यक्तिले सक्षमता प्राप्त गर्ने",
+          "db_document_status": "current",
+          "db_source_name": "नेपाल कानून आयोग (Nepal Law Commission)",
+          "match_document": true,
+          "match_section": true
+        }
+      ],
+      "session_id": "e2e-deva-test-f-property-law-general-08dbab",
+      "input": "सम्पत्ति कानून भनेको के हो?",
+      "latency_seconds": 23.2
+    },
+    "CLARIFICATION_VAGUE": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "यस मुद्दामा अर्को पक्ष को हो?",
+            "reason": "missing_opposing_party"
+          },
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "जग्गाको",
+          "विषयमा",
+          "समस्या",
+          "भूमि",
+          "land"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-clarification-vague-638322",
+      "input": "मेरो जग्गाको विषयमा समस्या भयो। अब के गर्ने?",
+      "latency_seconds": 7.8
+    },
+    "GREETING_1": {
+      "http_status": 200,
+      "body": {
+        "answer": "नमस्ते! Hello, ma kasari sahayog garna sakchhu? तपाईंको कानूनी समस्या बताउनुहोस्, म हाम्रो प्रमाणित कानूनी डाटाबेसबाट जानकारी खोजेर सहयोग गर्ने कोसिस गर्छु।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "यो के प्रकारको मुद्दा हो — सम्पत्ति, पारिवारिक, फौजदारी, वा अन्य?",
+            "reason": "missing_matter_type"
+          },
+          {
+            "question": "यस मुद्दामा अर्को पक्ष को हो?",
+            "reason": "missing_opposing_party"
+          }
+        ],
+        "needs_clarification": false,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "greeting",
+        "grounded": false,
+        "generation": "canned",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": null,
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [],
+        "audio": null
+      },
+      "session_id": "e2e-deva-greeting-1-3e9a2d",
+      "input": "नमस्ते",
+      "latency_seconds": 3.7
+    },
+    "GREETING_2": {
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "यो के प्रकारको मुद्दा हो — सम्पत्ति, पारिवारिक, फौजदारी, वा अन्य?",
+            "reason": "missing_matter_type"
+          },
+          {
+            "question": "यस मुद्दामा अर्को पक्ष को हो?",
+            "reason": "missing_opposing_party"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "हेलो",
+          "सन्चै",
+          "हुनुहुन्छ"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-greeting-2-564232",
+      "input": "हेलो, सन्चै हुनुहुन्छ?",
+      "latency_seconds": 6.9
+    },
+    "MULTITURN_TURN_1": {
+      "turn": 1,
+      "input": "मेरो भाइले हाम्रो बुबाको नाममा रहेको जग्गा आफ्नो नाममा राख्न खोजिरहेको छ।",
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "भाइले",
+          "हाम्रो",
+          "बुबाको",
+          "नाममा",
+          "रहेको",
+          "जग्गा",
+          "आफ्नो",
+          "राख्न",
+          "खोजिरहेको",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition",
+          "inheritance"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-multiturn-a424ce"
+    },
+    "MULTITURN_TURN_2": {
+      "turn": 2,
+      "input": "बुबाको मृत्यु भइसकेको छ र हामी दुई जना दाजुभाइ हौँ।",
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "बुबाको",
+          "मृत्यु",
+          "भइसकेको",
+          "हामी",
+          "दुई",
+          "जना",
+          "दाजुभाइ",
+          "हौँ",
+          "जग्गा",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-multiturn-a424ce"
+    },
+    "MULTITURN_TURN_3": {
+      "turn": 3,
+      "input": "अब मैले के गर्नुपर्छ?",
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "गर्नुपर्छ",
+          "जग्गा",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-multiturn-a424ce"
+    },
+    "MULTITURN_TURN_4": {
+      "turn": 4,
+      "input": "कुन कागजात चाहिन्छ?",
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "कागजात",
+          "चाहिन्छ",
+          "जग्गा",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-multiturn-a424ce"
+    },
+    "MULTITURN_TURN_5": {
+      "turn": 5,
+      "input": "यदि भाइले मेरो कुरा मानेन भने?",
+      "http_status": 200,
+      "body": {
+        "answer": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "citations": [],
+        "follow_up_questions": [
+          {
+            "question": "के भयो भनेर संक्षेपमा बताउनुहोस्।",
+            "reason": "missing_incident_description"
+          },
+          {
+            "question": "यो मुद्दा कुन जिल्ला वा शहरसँग सम्बन्धित छ?",
+            "reason": "missing_location"
+          }
+        ],
+        "needs_clarification": true,
+        "confidence": "low",
+        "disclaimer": "यो सामान्य कानूनी जानकारी मात्र हो, कानूनी सल्लाह होइन। यकिन निर्णय वा कारबाहीका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+        "status": "no_match",
+        "grounded": false,
+        "generation": "none",
+        "llm_provider": null,
+        "llm_model": null,
+        "llm_error": null,
+        "retrieval_status": "no_match",
+        "retrieval_total_found": 0,
+        "unverified_match_count": 0,
+        "search_terms": [
+          "यदि",
+          "भाइले",
+          "कुरा",
+          "मानेन",
+          "जग्गा",
+          "भूमि",
+          "land",
+          "अंशबाँडा",
+          "उत्तराधिकार",
+          "partition"
+        ],
+        "audio": null
+      },
+      "session_id": "e2e-deva-multiturn-a424ce"
+    },
+    "MULTITURN_CONTEXT": {
+      "session_id": "e2e-deva-multiturn-a424ce",
+      "stored_case_context": [
+        "NOT_VERIFIED: db read failed"
+      ],
+      "history_endpoint_status": 200,
+      "history_message_count": 10,
+      "history_messages": [
+        {
+          "role": "user",
+          "content": "मेरो भाइले हाम्रो बुबाको नाममा रहेको जग्गा आफ्नो नाममा राख्न खोजिरहेको छ।",
+          "created_at": "2026-09-19 11:38:49.961558+00:00"
+        },
+        {
+          "role": "assistant",
+          "content": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+          "created_at": "2026-09-19 11:38:55.795895+00:00"
+        },
+        {
+          "role": "user",
+          "content": "बुबाको मृत्यु भइसकेको छ र हामी दुई जना दाजुभाइ हौँ।",
+          "created_at": "2026-09-19 11:39:07.240220+00:00"
+        },
+        {
+          "role": "assistant",
+          "content": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+          "created_at": "2026-09-19 11:39:12.691863+00:00"
+        },
+        {
+          "role": "user",
+          "content": "अब मैले के गर्नुपर्छ?",
+          "created_at": "2026-09-19 11:39:17.664475+00:00"
+        },
+        {
+          "role": "assistant",
+          "content": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+          "created_at": "2026-09-19 11:39:23.138889+00:00"
+        },
+        {
+          "role": "user",
+          "content": "कुन कागजात चाहिन्छ?",
+          "created_at": "2026-09-19 11:39:28.022402+00:00"
+        },
+        {
+          "role": "assistant",
+          "content": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+          "created_at": "2026-09-19 11:39:32.666336+00:00"
+        },
+        {
+          "role": "user",
+          "content": "यदि भाइले मेरो कुरा मानेन भने?",
+          "created_at": "2026-09-19 11:40:10.290322+00:00"
+        },
+        {
+          "role": "assistant",
+          "content": "मेरो हालको ज्ञानभण्डारमा तपाईंको प्रश्नसँग मिल्ने प्रमाणित कानूनी प्रावधान भेटिएन, त्यसैले म अनुमान गरेर उत्तर दिन्नँ।\n\nके भयो, कहिले भयो, र कुनै कागजात वा सूचना प्राप्त भएको छ भन्ने विवरण दिनुभयो भने फेरि खोज्न सक्छु। तपाईंको विशेष अवस्थाबारे सल्लाहका लागि योग्य कानून व्यवसायीसँग परामर्श गर्नुहोस्।",
+          "created_at": "2026-09-19 11:40:16.025715+00:00"
+        }
+      ]
+    },
+    "OWNERSHIP_CHECK": {
+      "http_status": 403,
+      "body": {
+        "error": {
+          "code": "HTTP_ERROR",
+          "message": "Not authorized to access this conversation"
+        }
+      }
+    }
+  },
+  "started_at": "2026-09-19T11:35:00.909242+00:00",
+  "auth": {
+    "email_domain_only": "example.com",
+    "register_status": 200,
+    "login_status": 200,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI3NmU4YTlhNi0zNDIxLTQwZjYtYmEwYS1mZWRjZjlhZTA0ZWIiLCJlbWFpbCI6ImRldmFfZTJlX2FjYjQ3ZDliQGV4YW1wbGUuY29tIiwiZXhwIjoxNzg5OTA0MTA1fQ.SBccJJnKzlUSBbO7ENUKyXe2HTyY5Gr8uZE2CgrV3kY"
+  },
+  "nyayalm_probe": {
+    "model": "hf.co/chhatramani/nyayalm1.7B_civil9law:Q4_K_M",
+    "message_keys": [
+      "content",
+      "role",
+      "thinking"
+    ],
+    "content_length": 733,
+    "thinking_field_present": true,
+    "thinking_length": 1075,
+    "thinking_sample_first_120_chars": "Okay, the user is asking about the legal information regarding land seizure. Let me recall what I know about this topic.",
+    "content_sample_first_120_chars": "जग्गा कब्जा सम्बन्धी कानूनी जानकारी दिनु पर्ने विषयमा निम्ति जग्गा कब्जा गर्ने व्यक्तिले जग्गा बिक्री वा बिक्री गर्ने वि",
+    "latency_seconds": 9.93
+  },
+  "updated_at": "2026-09-19T11:41:23.124737+00:00",
+  "multiturn_session_id": "e2e-deva-multiturn-a424ce"
+}

@@ -42,6 +42,9 @@ _Citation _$CitationFromJson(Map<String, dynamic> json) => _Citation(
   source: json['source'] as String,
   score: (json['score'] as num).toDouble(),
   sourceUrl: json['source_url'] as String?,
+  sectionTitle: json['section_title'] as String?,
+  isVerified: json['is_verified'] as bool? ?? false,
+  currentnessStatus: json['currentness_status'] as String? ?? 'unknown',
 );
 
 Map<String, dynamic> _$CitationToJson(_Citation instance) => <String, dynamic>{
@@ -51,6 +54,9 @@ Map<String, dynamic> _$CitationToJson(_Citation instance) => <String, dynamic>{
   'source': instance.source,
   'score': instance.score,
   'source_url': instance.sourceUrl,
+  'section_title': instance.sectionTitle,
+  'is_verified': instance.isVerified,
+  'currentness_status': instance.currentnessStatus,
 };
 
 _FollowUpQuestion _$FollowUpQuestionFromJson(Map<String, dynamic> json) =>

@@ -23,7 +23,10 @@ class RegisterScreen extends HookConsumerWidget {
         final val = next.value!;
         if (val is AuthStateError) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(val.message), backgroundColor: Colors.red),
+            SnackBar(
+                content: Text(val.message),
+                backgroundColor:
+                    Theme.of(context).colorScheme.error),
           );
         } else if (val is AuthStateAuthenticated) {
           context.go('/home');
@@ -35,7 +38,7 @@ class RegisterScreen extends HookConsumerWidget {
         authState.isLoading || (authState.value is AuthStateLoading);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Account')),
+      appBar: AppBar(title: const Text('खाता खोल्नुहोस्')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -50,8 +53,7 @@ class RegisterScreen extends HookConsumerWidget {
                     controller: nameController,
                     decoration: const InputDecoration(
                       labelText: 'Full Name',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.person),
+                      prefixIcon: Icon(Icons.person_outline),
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
@@ -60,13 +62,12 @@ class RegisterScreen extends HookConsumerWidget {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   TextFormField(
                     controller: emailController,
                     decoration: const InputDecoration(
                       labelText: 'Email',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.email),
+                      prefixIcon: Icon(Icons.email_outlined),
                     ),
                     keyboardType: TextInputType.emailAddress,
                     validator: (value) {
@@ -79,13 +80,12 @@ class RegisterScreen extends HookConsumerWidget {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   TextFormField(
                     controller: passwordController,
                     decoration: InputDecoration(
                       labelText: 'Password',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.lock),
+                      prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(
                           isPasswordVisible.value
@@ -108,31 +108,38 @@ class RegisterScreen extends HookConsumerWidget {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: isLoading
-                        ? null
-                        : () {
-                            if (formKey.currentState!.validate()) {
-                              ref
-                                  .read(authProvider.notifier)
-                                  .register(
-                                    emailController.text,
-                                    passwordController.text,
-                                    nameController.text,
-                                  );
-                            }
-                          },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: isLoading
+                          ? null
+                          : () {
+                              if (formKey.currentState!.validate()) {
+                                ref
+                                    .read(authProvider.notifier)
+                                    .register(
+                                      emailController.text,
+                                      passwordController.text,
+                                      nameController.text,
+                                    );
+                              }
+                            },
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text('Sign Up'),
                     ),
-                    child: isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Sign Up'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed:
+                        isLoading ? null : () => context.pop(),
+                    child: const Text('पहिले नै खाता छ? साइन इन'),
                   ),
                 ],
               ),

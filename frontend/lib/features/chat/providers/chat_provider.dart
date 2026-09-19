@@ -145,6 +145,7 @@ class ChatNotifier extends _$ChatNotifier {
         content: response.answer,
         audio: response.audio,
         citations: response.citations,
+        followUps: response.followUpQuestions,
         grounded: response.grounded,
         status: response.status,
         disclaimer: response.disclaimer,
@@ -161,6 +162,39 @@ class ChatNotifier extends _$ChatNotifier {
       state = AsyncData(
         current.copyWith(isSending: false, error: _messageFor(e)),
       );
+    }
+  }
+
+  /// Adopt a voice response that was already uploaded elsewhere (voice
+  /// screen). The backend persists the user turn server-side; we optimistically
+  /// render the transcription is unknown, so we only append the assistant
+  /// turn and let [loadConversation] reconcile the full history.
+  Future<void> adoptVoiceResponse(ConversationResponse response) async {
+    final current = state.value ?? ChatUiState(status: _emptyStatus(sessionId));
+    final botMessage = ConversationMessage(
+      role: 'assistant',
+      content: response.answer,
+      audio: response.audio,
+      citations: response.citations,
+      followUps: response.followUpQuestions,
+      grounded: response.grounded,
+      status: response.status,
+      disclaimer: response.disclaimer,
+    );
+    state = AsyncData(
+      ChatUiState(
+        status: current.status.copyWith(
+          messages: [...current.status.messages, botMessage],
+        ),
+      ),
+    );
+    // Reconcile with the server history (which includes the transcribed user
+    // turn) without losing what is already on screen.
+    try {
+      final status = await _repository.getConversationStatus(sessionId);
+      state = AsyncData(ChatUiState(status: status));
+    } catch (_) {
+      // Keep the optimistic view; the next load will reconcile.
     }
   }
 

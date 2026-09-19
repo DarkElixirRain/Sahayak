@@ -16,6 +16,7 @@ from app.services.llm import (
     LLMError,
     LLMMalformedResponseError,
     LLMNotConfiguredError,
+    LLMProvider,
     LLMProviderError,
     LLMTimeoutError,
     OpenAICompatibleProvider,
@@ -290,7 +291,7 @@ def test_default_provider_is_cached_and_resettable():
     reset_llm_provider_cache()
     first = get_llm_provider()
     assert get_llm_provider() is first
-    assert first is None or isinstance(first, OpenAICompatibleProvider)
+    assert first is None or isinstance(first, LLMProvider)
 
     reset_llm_provider_cache()
     assert get_llm_provider() is not first

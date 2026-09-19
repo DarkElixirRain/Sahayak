@@ -245,6 +245,123 @@ class OpenAICompatibleProvider(LLMProvider):
         return LLMCompletion(text=text.strip(), provider=self.name, model=self.model)
 
 
+class OllamaProvider(LLMProvider):
+    """Provider for Ollama native ``/api/chat`` endpoint.
+
+    Ollama runs locally and does not require an API key. It uses its own
+    chat format rather than the OpenAI-compatible format.
+
+    Supports NyayaLM and other locally-hosted models via Ollama.
+    """
+
+    def __init__(
+        self,
+        *,
+        model: str,
+        base_url: str = "http://localhost:11434",
+        timeout: float = 60.0,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self.name = "ollama"
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self._timeout = timeout
+        self._client = client if client is not None else httpx.Client(timeout=timeout)
+        self._owns_client = client is None
+
+    @property
+    def endpoint(self) -> str:
+        return f"{self.base_url}/api/chat"
+
+    def close(self) -> None:
+        """Release the HTTP client if this provider created it."""
+        if self._owns_client:
+            self._client.close()
+
+    def generate(
+        self,
+        *,
+        system_prompt: str,
+        messages: Sequence[Mapping[str, str]],
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
+    ) -> LLMCompletion:
+        """Call Ollama and return a validated completion.
+
+        Raises:
+            LLMTimeoutError: the request exceeded the configured timeout.
+            LLMProviderError: network failure or a non-2xx provider response.
+            LLMMalformedResponseError: the body was not a usable completion.
+        """
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                *[
+                    {"role": str(m.get("role", "user")),
+                     "content": str(m.get("content", ""))}
+                    for m in messages
+                ],
+            ],
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+            },
+        }
+        headers = {"Content-Type": "application/json"}
+
+        try:
+            response = self._client.post(
+                self.endpoint, json=payload, headers=headers, timeout=self._timeout
+            )
+        except httpx.TimeoutException as exc:
+            raise LLMTimeoutError(
+                f"Ollama request timed out after {self._timeout:g}s"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise LLMProviderError(
+                f"Ollama request failed ({type(exc).__name__})"
+            ) from exc
+
+        if response.status_code >= 400:
+            raise LLMProviderError(
+                f"Ollama returned HTTP {response.status_code}",
+                status_code=response.status_code,
+            )
+
+        try:
+            data = response.json()
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise LLMMalformedResponseError(
+                "Ollama returned a non-JSON response"
+            ) from exc
+
+        # Ollama response format: {"message": {"role": "assistant", "content": "..."}, ...}
+        if not isinstance(data, dict):
+            raise LLMMalformedResponseError("Ollama returned an unexpected body")
+
+        if isinstance(data.get("error"), str):
+            raise LLMMalformedResponseError(f"Ollama returned an error: {data['error']}")
+
+        message = data.get("message")
+        if not isinstance(message, dict):
+            raise LLMMalformedResponseError("Ollama returned no message")
+
+        content = message.get("content")
+        # Qwen3 thinking models (like NyayaLM) may put the response in the
+        # "thinking" field while leaving "content" empty. When content is
+        # empty but thinking has text, use thinking as the response.
+        if (not isinstance(content, str) or not content.strip()):
+            thinking = message.get("thinking")
+            if isinstance(thinking, str) and thinking.strip():
+                content = thinking
+            else:
+                raise LLMMalformedResponseError("Ollama returned an empty completion")
+
+        return LLMCompletion(text=content.strip(), provider=self.name, model=self.model)
+
+
 # Process-wide cache so a long-running server reuses one HTTP client (and its
 # connection pool) instead of building one per request. Only successful builds
 # are cached, and tests can reset it.
@@ -265,11 +382,27 @@ def _build_provider(
     active: Settings, client: httpx.Client | None
 ) -> LLMProvider | None:
     """Construct a provider, or return ``None`` when unusable."""
+    provider_name = (active.llm_provider or "groq").strip().lower()
+
+    # Ollama/NyayaLM: no API key required, uses native Ollama endpoint.
+    if provider_name in ("ollama", "nyayalm", "nyayalm_local"):
+        # For NyayaLM, use the nyayalm-specific config if llm_model is still default
+        model = active.llm_model
+        if provider_name in ("nyayalm", "nyayalm_local") and model == "llama-3.1-8b-instant":
+            model = active.nyayalm_model
+        ollama_base = active.llm_base_url or active.nyayalm_base_url or "http://localhost:11434"
+        return OllamaProvider(
+            model=model,
+            base_url=ollama_base,
+            timeout=active.llm_timeout_seconds,
+            client=client,
+        )
+
+    # Groq/OpenAI: require API key.
     if not active.llm_configured:
         logger.info("LLM provider not configured: grounded generation disabled")
         return None
 
-    provider_name = (active.llm_provider or "groq").strip().lower()
     if provider_name not in DEFAULT_BASE_URLS and not active.llm_base_url:
         logger.warning(
             "Unknown LLM_PROVIDER %r with no LLM_BASE_URL; using 'groq'",

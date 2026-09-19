@@ -11,6 +11,7 @@ sealed class ConversationMessage with _$ConversationMessage {
     @JsonKey(name: 'created_at') String? createdAt,
     String? audio,
     @Default(<Citation>[]) List<Citation> citations,
+    @Default(<FollowUpQuestion>[]) List<FollowUpQuestion> followUps,
     @Default(false) bool grounded,
     String? status,
     String? disclaimer,
@@ -29,6 +30,9 @@ sealed class Citation with _$Citation {
     required String source,
     required double score,
     @JsonKey(name: 'source_url') String? sourceUrl,
+    @JsonKey(name: 'section_title') String? sectionTitle,
+    @JsonKey(name: 'is_verified') @Default(false) bool isVerified,
+    @JsonKey(name: 'currentness_status') @Default('unknown') String currentnessStatus,
   }) = _Citation;
 
   factory Citation.fromJson(Map<String, dynamic> json) =>

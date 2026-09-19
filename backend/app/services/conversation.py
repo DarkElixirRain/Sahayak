@@ -59,6 +59,7 @@ from app.services.legal_grounding import (
     strip_urls_from_answer,
 )
 from app.services.llm import LLMError, LLMProvider, get_llm_provider
+from app.util.roman_to_deva import build_dual_script_query, normalize_romanized_nepali, is_romanized_nepali
 
 logger = logging.getLogger("app.services.conversation")
 
