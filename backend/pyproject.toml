@@ -1,0 +1,82 @@
+[project]
+name = "sahayak-backend"
+version = "0.1.0"
+description = "Simplified RAG system for PDF document querying"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # REMOVED: anthropic - not using Claude API
+    "arq>=0.26.3",
+    # REMOVED: assemblyai - no audio processing
+    "asyncio>=3.4.3",
+    "asyncpg>=0.30.0",
+    # REMOVED: boto3 - using local storage
+    # REMOVED: build - not needed
+    "dotenv>=0.9.9",
+    "fastapi>=0.115.12",
+    "filetype>=1.2.0",
+    # REMOVED: flagembedding - reranking disabled
+    # REMOVED: google-api-python-client, google-auth, google-auth-oauthlib - not needed
+    "google-genai>=1.15.0",
+    "greenlet>=3.2.2",
+    "httpx[http2]>=0.28.1",
+    "importlib>=1.0.4",
+    "instructor>=1.8.1",
+    "itsdangerous>=2.2.0",
+    "litellm>=1.69.1",
+    "lxml>=5.2.2",
+    "morphik==1.0.3",
+    "ollama>=0.4.8",
+    "openai>=1.75.0",
+    # REMOVED: opentelemetry - monitoring disabled
+    "pgvector>=0.4.1",
+    # REMOVED: pre-commit - not needed in runtime
+    "psycopg>=3.2.9",
+    "psycopg-binary>=3.2.9",
+    "psycopg-pool>=3.2.6",
+    "psycopg2-binary>=2.9.9",
+    # REMOVED: PyGithub - not using GitHub API
+    "pydantic>=2.11.4",
+    "pydantic-settings>=2.9.1",
+    "pymupdf==1.25.5",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "python-multipart>=0.0.20",
+    # REMOVED: pyzotero - research management not used
+    "requests>=2.32.3",
+    "sqlalchemy>=2.0.40",
+    # REMOVED: stripe - payment processing not needed
+    "toml>=0.10.2",
+    "tomli>=2.2.1",
+    # REMOVED: torch, torchaudio, torchvision - ML frameworks not needed (~2GB+)
+    "tqdm>=4.67.1",
+    # REMOVED: twine, build - not needed
+    "ty>=0.0.1a6",
+    "docling>=2.15.0",
+    # REMOVED: pdf2image - not used
+    "uvicorn>=0.34.2",
+    # REMOVED: weasyprint - HTML to PDF not needed
+    # REMOVED: profiling tools - yappi, snakeviz, pyprof2calltree, line_profiler
+    # REMOVED: types-boto3 - type hints not needed without boto3
+    # REMOVED: sentrQy-sdk - monitoring disabled
+    # REMOVED: turbopuffer - external vector DB not used
+    # REMOVED: colpali-engine - advanced visual embedding not needed
+    # REMOVED: fast-plaid, fastkmeans - not used
+    # REMOVED: opencv-python-headless - not used
+]
+
+[dependency-groups]
+dev-local = []
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.ruff]
+line-length = 120
+ignore = ["I"]
+
+[tool.uv.sources]

@@ -1,0 +1,17 @@
+{
+  "query": "मेरो भाइले मलाई मुद्दा हाल्यो।",
+  "k": 5,
+  "stream_response": false,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "response_type": {
+        "type": "string",
+        "enum": ["casual", "legal_clarification", "legal_answer"]
+      },
+      "message": {"type": "string"},
+      "summary": {"type": "string"}
+    },
+    "required": ["response_type", "message"]
+  }
+}

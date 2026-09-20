@@ -1,0 +1,34 @@
+{
+  "query": "hi",
+  "k": 5,
+  "stream_response": false,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "response_type": {
+        "type": "string",
+        "enum": ["casual", "legal_clarification", "legal_answer"]
+      },
+      "message": {"type": "string"},
+      "summary": {"type": "string"},
+      "issue": {"type": "string"},
+      "applicable_laws": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "act_name": {"type": "string"},
+            "section": {"type": "string"},
+            "explanation": {"type": "string"},
+            "source_id": {"type": "string"}
+          },
+          "required": ["act_name", "section", "explanation", "source_id"]
+        }
+      },
+      "explanation": {"type": "string"},
+      "next_steps": {"type": "array", "items": {"type": "string"}},
+      "clarifying_questions": {"type": "array", "items": {"type": "string"}}
+    },
+    "required": ["response_type", "message"]
+  }
+}

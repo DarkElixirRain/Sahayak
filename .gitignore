@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+.vscode/
+.idea/
+frontend/
+
+# Python virtual environments
+backend/venv/
+backend/venv310/
+backend/venv311/
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+backend/venv/
+backend/venv310/
+backend/venv311/
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
